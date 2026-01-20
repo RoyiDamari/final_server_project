@@ -1,0 +1,33 @@
+# Virtual environments
+venv/
+env/
+
+# Python bytecode/cache
+__pycache__/
+*.pyc
+
+# IDE/editor configs
+.idea/
+.vscode/
+
+# Ignore log files
+app/Logs/
+
+# PostgreSQL volumes
+# (These do not appear as normal files, but we ignore the folder if someone accidentally creates one)
+postgres_data/
+
+# Runtime folders created by the backend
+logs/
+saved_models/
+
+# Environment files
+.env
+
+# Local datasets
+data/
+*.csv
+*.xlsx
+
+# Allow the example dataset
+!data/exam_score_prediction.csv
