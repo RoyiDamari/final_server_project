@@ -24,8 +24,7 @@ saved_models/
 # Environment files
 .env
 
-# Local datasets
-data/
+# Local files
 *.csv
 *.xlsx
 
