@@ -1,0 +1,59 @@
+services:
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  postgres_db:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  fastapi_app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    volumes:
+      - ./saved_models:/app/saved_models
+      - ./logs:/app/logs
+    env_file: .env
+    depends_on:
+      - postgres_db
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  streamlit_app:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    command: streamlit run /ui_root/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+    ports: ["8501:8501"]
+    volumes: []
+    env_file: .env
+    depends_on:
+      - fastapi_app
+    restart: unless-stopped
+    environment:
+      PYTHONPATH: /ui_root
+
+volumes:
+  redis_data:
+  postgres_data:
+
