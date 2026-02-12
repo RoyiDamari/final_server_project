@@ -12,6 +12,6 @@ COPY ui/requirements-ui.txt /ui_root/requirements-ui.txt
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements-ui.txt
 
 # Copy the ENTIRE app folder
-COPY ui/ /ui_root/ui
+# COPY ui/ /ui_root/ui
 
 

@@ -16,7 +16,7 @@ from app.controllers.user_usage_controller import router as user_usage_router
 from app.utils.redis import init_redis, close_redis
 from app.exceptions.handlers import app_exception_handlers
 from app.maintenance.health import db_guard
-from app.maintenance.reconciler import reconcile_trained_models_on_startup, reconcile_predictions_on_startup
+from app.maintenance.reconciler import reconcile_files_on_startup
 import logging
 
 
@@ -44,8 +44,7 @@ async def on_startup():
     await init_redis()
 
     async with SessionLocal() as db:
-        await reconcile_trained_models_on_startup(db)
-        await reconcile_predictions_on_startup(db)
+        await reconcile_files_on_startup(db)
 
     app.state.db_guard_task = asyncio.create_task(db_guard(engine))
 

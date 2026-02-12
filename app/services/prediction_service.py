@@ -2,17 +2,16 @@ import asyncio
 import pandas as pd
 from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
-from contextlib import suppress
 from typing import Any, Dict, Tuple
 from app.models.enums import ActionType, RowStatus
 from app.exceptions.prediction import (
     PredictionInProgressException,
     ModelNotFoundException,
-    ArtifactMissingException,
     FeatureMismatchException,
     PredictionFailedException,
 )
+from app.exceptions.base import BaseAppException
+from app.exceptions.artifact import ArtifactMissingException
 from app.models.orm_models.users import User
 from app.models.orm_models.trained_models import TrainedModel
 from app.models.orm_models.predictions import Prediction
@@ -71,9 +70,6 @@ class PredictionService:
             if existing.status == RowStatus.applied:
                 fresh_balance = await URepo.get_tokens_by_id(db, user.id)
                 return {"data": existing, "charged": False, "balance": fresh_balance }
-            row_id = await PRepo.restart_existing_row(db, user.id, fp)
-            if row_id is None:
-                raise PredictionInProgressException()
 
         try:
             result_str = await PredictionService._run_prediction(
@@ -83,11 +79,9 @@ class PredictionService:
                 timeout_s=10.0,
             )
         except asyncio.CancelledError:
-            await PredictionService._fail_prediction_safely(db, row_id)
             raise
-        except Exception as e:
-            await PredictionService._fail_prediction_safely(db, row_id)
-            raise PredictionFailedException(log_detail=f"predict error: {e!r}") from e
+        except BaseAppException:
+            raise
 
         try:
             balance = await URepo.update_tokens(db, user.id, action.cost)
@@ -97,11 +91,11 @@ class PredictionService:
                     log_detail=f"apply state mismatch: id={row_id} (expected pending)"
                 )
         except asyncio.CancelledError:
-            await PredictionService._fail_prediction_safely(db, row_id)
             raise
-        except PredictionFailedException:
-            await PredictionService._fail_prediction_safely(db, row_id)
+        except BaseAppException:
             raise
+        except Exception as e:
+            raise PredictionFailedException(log_detail=f"apply step failed: {e!r}") from e
 
         ts = applied.created_at.isoformat()
         await invalidate_global_predictions_cache(redis, ts)
@@ -295,7 +289,4 @@ class PredictionService:
         except Exception as e:
             raise PredictionFailedException(log_detail=f"predict error: {e!r}") from e
 
-    @staticmethod
-    async def _fail_prediction_safely(db: AsyncSession, row_id: int) -> None:
-        with suppress(SQLAlchemyError):
-            await PRepo.mark_failed(db, row_id)
+

@@ -22,11 +22,13 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports: ["8000:8000"]
     volumes:
+      - ./app:/app/app
       - ./saved_models:/app/saved_models
       - ./logs:/app/logs
+      - ./uploads/_tmp:/app/uploads/_tmp
     env_file: .env
     depends_on:
       - postgres_db
@@ -45,7 +47,8 @@ services:
       dockerfile: ui/Dockerfile
     command: streamlit run /ui_root/ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
     ports: ["8501:8501"]
-    volumes: []
+    volumes:
+      - ./ui:/ui_root/ui
     env_file: .env
     depends_on:
       - fastapi_app

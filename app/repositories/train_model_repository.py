@@ -74,42 +74,6 @@ class TrainModelRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def restart_existing_row(
-        db: AsyncSession,
-            user_id: int,
-            fingerprint: str
-    ) -> Optional[int]:
-        """
-        Atomically flip a failed row back to pending so the caller can reuse the same id.
-        Returns id if flipped; None if no failed row to flip (e.g., another request already did it).
-        """
-        stmt = (
-            update(TrainedModel)
-            .where(
-                TrainedModel.user_id == user_id,
-                TrainedModel.fingerprint == fingerprint,
-                TrainedModel.status == RowStatus.failed,
-            )
-            .values(status=RowStatus.pending, metrics=None)
-            .returning(TrainedModel.id)
-        )
-        res = await db.execute(stmt)
-        return res.scalar_one_or_none()
-
-    @staticmethod
-    async def mark_failed(db: AsyncSession, trained_model_id: int) -> bool:
-        """
-        Mark any row as failed (idempotent). Returns True if a row was updated.
-        """
-        stmt = (
-            update(TrainedModel)
-            .where(TrainedModel.id == trained_model_id)
-            .values(status=RowStatus.failed)
-        )
-        res = await db.execute(stmt)
-        return res.rowcount > 0
-
-    @staticmethod
     async def mark_applied(
         db: AsyncSession,
         trained_model_id: int,
@@ -177,3 +141,18 @@ class TrainModelRepository:
                 where(TrainedModel.user.has(is_active=True))
                 .order_by(TrainedModel.created_at))
         return (await db.execute(stmt)).scalars().all()
+
+    @staticmethod
+    async def list_model_paths_applied(db) -> set[str]:
+        """
+        Return a set of model_path strings for rows that are in applied state.
+        Paths may be relative ("saved_models/...") or absolute depending on your setup.
+        """
+        stmt = select(TrainedModel.model_path).where(
+            TrainedModel.status == RowStatus.applied,
+            TrainedModel.model_path.is_not(None),
+            TrainedModel.user.has(is_active=True),
+        )
+        res = await db.execute(stmt)
+
+        return {p for p in res.scalars().all() if p}

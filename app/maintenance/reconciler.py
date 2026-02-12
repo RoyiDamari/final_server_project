@@ -1,33 +1,26 @@
-from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.orm_models.trained_models import TrainedModel
-from app.models.orm_models.predictions import Prediction
-from app.models.enums import RowStatus
+from app.core.logs import errors
+from app.repositories.train_model_repository import TrainModelRepository as TMRepo
 from app.maintenance._helpers import (
-    finish_publish_or_fail,
-    fail_pending_and_clean_tmp,
+    sweep_tmp_files,
+    sweep_orphan_final_files,
+    sweep_tmp_dir,
 )
 
+async def reconcile_files_on_startup(db: AsyncSession) -> None:
+    # 1) DB snapshot (read-only) inside a tx for consistent view
+    async with db.begin():
+        referenced = await TMRepo.list_model_paths_applied(db)
 
-async def reconcile_trained_models_on_startup(db: AsyncSession) -> None:
-    applied = await db.execute(
-        select(TrainedModel.id, TrainedModel.model_path)
-        .where(TrainedModel.status == RowStatus.applied)
-    )
-    for tm_id, path in applied.all():
-        await finish_publish_or_fail(db, tm_id, path)
+    # 2) Filesystem sweeps (no DB)
+    deleted_model_tmps = sweep_tmp_files(base_dir="saved_models")
+    deleted_orphan_finals = sweep_orphan_final_files(referenced, base_dir="saved_models")
 
-    pendings = await db.execute(
-        select(TrainedModel.id, TrainedModel.model_path)
-        .where(TrainedModel.status == RowStatus.pending)
-    )
-    for tm_id, path in pendings.all():
-        await fail_pending_and_clean_tmp(db, tm_id, path)
+    deleted_upload_tmps = sweep_tmp_dir(base_dir="uploads/_tmp")
 
-
-async def reconcile_predictions_on_startup(db: AsyncSession) -> None:
-    await db.execute(
-        update(Prediction)
-        .where(Prediction.status == RowStatus.pending)
-        .values(status=RowStatus.failed)
+    errors.info(
+        "[reconciler] model_tmp_deleted=%s orphan_finals_deleted=%s upload_tmp_deleted=%s",
+        deleted_model_tmps,
+        deleted_orphan_finals,
+        deleted_upload_tmps,
     )

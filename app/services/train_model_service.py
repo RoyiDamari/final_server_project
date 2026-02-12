@@ -1,11 +1,11 @@
 import asyncio
 from typing import Dict, Any, Optional
 from redis.asyncio.client import Redis
-from contextlib import suppress
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
 import pandas as pd
+from app.exceptions.base import BaseAppException
 from app.exceptions.train_model import  TrainModelInProgressException, TrainingFailedException
+from app.exceptions.artifact import ArtifactWriteException
 from app.models.orm_models.users import User
 from app.models.orm_models.trained_models import TrainedModel
 from app.models.pydantic_models.train_model import TrainedModelResponse
@@ -20,7 +20,7 @@ from app.utils.validators import (
 )
 from app.models.ml_models.model_strategy_factory import get_model_strategy
 from app.utils.fingerprint_hashing import compute_training_fingerprint
-from app.utils.files import unique_model_path, temp_path_for, move_temp_to_final, ArtifactWriteException, safe_unlink
+from app.utils.files import unique_model_path, temp_path_for, move_temp_to_final, safe_unlink
 from app.utils.cache_invalidation import invalidate_global_models_cache
 from app.workers.procs import build_train_worker_cmd, run_training_subprocess
 from app.core.logs import log_action
@@ -87,9 +87,6 @@ class TrainModelService:
             if existing.status == RowStatus.applied:
                 fresh_balance = await URepo.get_tokens_by_id(db, user.id)
                 return {"data": existing, "charged": False, "balance": fresh_balance}
-            row_id = await TMRepo.restart_existing_row(db, user.id, fp)
-            if row_id is None:
-                raise TrainModelInProgressException()
 
         cmd = build_train_worker_cmd(
             csv_path=file,
@@ -103,16 +100,16 @@ class TrainModelService:
         try:
             rc, out, err = await run_training_subprocess(cmd)
         except asyncio.CancelledError:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path)
+            safe_unlink(tmp_path)
             raise
         if rc != 0:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path)
+            safe_unlink(tmp_path)
             raise TrainingFailedException(log_detail=(err.strip() or "no stderr"))
 
         try:
             metrics = TrainModelService._parse_metrics_or_raise(out)
         except ValueError as e:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path)
+            safe_unlink(tmp_path)
             raise TrainingFailedException(log_detail=f"metrics-parse failed: {e!r}") from e
 
         try:
@@ -124,20 +121,23 @@ class TrainModelService:
                 )
 
         except asyncio.CancelledError:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path)
+            safe_unlink(tmp_path)
             raise
-        except Exception:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path)
+        except BaseAppException:
+            safe_unlink(tmp_path)
             raise
+        except Exception as e:
+            safe_unlink(tmp_path)
+            raise TrainingFailedException(log_detail=f"apply step failed: {e!r}") from e
 
         try:
             move_temp_to_final(tmp_path, final_path)
         except asyncio.CancelledError:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path, final_path)
+            TrainModelService._cleanup_files(tmp_path, final_path)
             raise
-        except ArtifactWriteException:
-            await TrainModelService._fail_and_cleanup(db, row_id, tmp_path, final_path)
-            raise
+        except ArtifactWriteException as e:
+            TrainModelService._cleanup_files(tmp_path, final_path)
+            raise TrainingFailedException(log_detail=e.log_detail) from e
 
         ts = applied.created_at.isoformat()
         await invalidate_global_models_cache(redis, ts)
@@ -245,15 +245,10 @@ class TrainModelService:
         return await TMRepo.get_user_models(db, user.id)
 
     @staticmethod
-    async def _fail_and_cleanup(
-            db,
-            row_id: int,
+    def _cleanup_files(
             tmp_path: Optional[str] = None,
-            final_path: Optional[str] = None) -> None:
-
-        with suppress(SQLAlchemyError):
-            await TMRepo.mark_failed(db, trained_model_id=row_id)
-
+            final_path: Optional[str] = None,
+    ) -> None:
         safe_unlink(tmp_path)
         safe_unlink(final_path)
 

@@ -1,75 +1,90 @@
 import os
 from contextlib import suppress
-from typing import Optional, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.logs import errors
-from app.repositories.train_model_repository import TrainModelRepository as TMRepo
-from app.utils.files import move_temp_to_final, safe_unlink
-from app.exceptions.train_model import ArtifactWriteException
+from typing import Set
+from app.utils.files import safe_unlink
 
 
-async def mark_failed_safely(db: AsyncSession, tm_id: int, reason: str) -> None:
-    """Best-effort: flip row to failed in its own short tx, with a small log."""
-    with suppress(Exception):
-        async with db.begin():
-            await TMRepo.mark_failed(db, trained_model_id=tm_id)
-    errors.info("[reconciler] marked_failed tm_id=%s reason=%s", tm_id, reason)
-
-
-def _inspect_paths(final_path: Optional[str]) -> Tuple[Optional[str], Optional[str], bool, bool]:
+def sweep_tmp_files(base_dir: str = "saved_models") -> int:
     """
-    Return (final_path, tmp_path, final_exists, tmp_exists).
-
-    If final_path is falsy/None, tmp_path is None too and both exists flags are False.
+    Delete all *.tmp files under saved_models/**.
+    Safe if you run this before accepting requests (startup reconciliation).
+    Returns count deleted.
     """
-    if not final_path:
-        return None, None, False, False
+    deleted = 0
+    if not os.path.isdir(base_dir):
+        return 0
 
-    final_exists = os.path.exists(final_path)
-    tmp_path = f"{final_path}.tmp"
-    tmp_exists = os.path.exists(tmp_path)
-    return final_path, tmp_path, final_exists, tmp_exists
-
-
-async def finish_publish_or_fail(db: AsyncSession, tm_id: int, final_path: Optional[str]) -> None:
-    """
-    For rows already marked 'applied':
-      - If final exists → nothing to do.
-      - If final missing but tmp exists → try to atomically move tmp→final; on error, mark failed + cleanup.
-      - If both missing or path is None → mark failed.
-    """
-    final_path, tmp_path, final_exists, tmp_exists = _inspect_paths(final_path)
-
-    if not final_path:
-        await mark_failed_safely(db, tm_id, reason="no_final_path")
-        return
-
-    if final_exists:
-        errors.info("[reconciler] final_exists tm_id=%s path=%s", tm_id, final_path)
-        return
-
-    if tmp_exists and tmp_path:
-        try:
-            move_temp_to_final(tmp_path, final_path)
-            errors.info("[reconciler] publish_completed tm_id=%s tmp=%s final=%s", tm_id, tmp_path, final_path)
-        except ArtifactWriteException as e:
-            await mark_failed_safely(db, tm_id, reason="publish_move_failed")
+    for root, _dirs, files in os.walk(base_dir):
+        for name in files:
+            if not name.endswith(".tmp"):
+                continue
+            path = os.path.join(root, name)
             with suppress(Exception):
-                safe_unlink(tmp_path)
-                safe_unlink(final_path)
-            errors.warning("[reconciler] publish_cleanup tm_id=%s tmp=%s final=%s err=%s",
-                           tm_id, tmp_path, final_path, e)
-    else:
-        await mark_failed_safely(db, tm_id, reason="artifact_missing")
-        errors.warning("[reconciler] artifact_missing tm_id=%s final=%s tmp=%s",
-                       tm_id, final_path, (tmp_path or "<none>"))
+                safe_unlink(path)
+                deleted += 1
+    return deleted
 
 
-async def fail_pending_and_clean_tmp(db: AsyncSession, tm_id: int, final_path: Optional[str]) -> None:
-    """Flip any pending to failed and delete leftover .tmp best-effort, with logs."""
-    await mark_failed_safely(db, tm_id, reason="pending_at_startup")
-    tmp = f"{final_path}.tmp" if final_path else None
-    if tmp:
-        with suppress(Exception):
-            safe_unlink(tmp)
-        errors.info("[reconciler] tmp_cleanup tm_id=%s tmp=%s", tm_id, tmp)
+def sweep_orphan_final_files(referenced_final_paths: Set[str], base_dir: str = "saved_models") -> int:
+    """
+    Delete final *.pkl files that exist on disk but are NOT referenced by the DB.
+
+    Why can this happen?
+    - move_temp_to_final succeeded
+    - process died before DB commit
+    => file exists, row does not
+
+    Returns count deleted.
+    """
+    deleted = 0
+    if not os.path.isdir(base_dir):
+        return 0
+
+    # Normalize referenced paths to absolute paths for robust comparison
+    base_abs = os.path.abspath(base_dir)
+    referenced_abs = set()
+
+    for p in referenced_final_paths:
+        # If DB stored relative path, make it comparable
+        if os.path.isabs(p):
+            referenced_abs.add(os.path.abspath(p))
+        else:
+            referenced_abs.add(os.path.abspath(os.path.join(base_abs, p)))
+
+    for root, _dirs, files in os.walk(base_dir):
+        for name in files:
+            # only finals
+            if not name.endswith(".pkl"):
+                continue
+
+            full_path = os.path.abspath(os.path.join(root, name))
+
+            # ignore any accidental "pkl.tmp" (already handled by tmp sweep)
+            if full_path.endswith(".tmp"):
+                continue
+
+            if full_path not in referenced_abs:
+                with suppress(Exception):
+                    safe_unlink(full_path)
+                    deleted += 1
+
+    return deleted
+
+
+def sweep_tmp_dir(base_dir: str) -> int:
+    """
+    Delete all files inside base_dir (non-recursive is fine for _tmp; you can
+    make it recursive if you nest).
+    Returns number of deleted files.
+    """
+    if not os.path.isdir(base_dir):
+        return 0
+
+    deleted = 0
+    for name in os.listdir(base_dir):
+        p = os.path.join(base_dir, name)
+        if os.path.isfile(p):
+            with suppress(Exception):
+                os.remove(p)
+                deleted += 1
+    return deleted

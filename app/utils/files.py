@@ -1,12 +1,11 @@
 import os
 import tempfile
 import joblib
-import shutil
 from fastapi import UploadFile
 from typing import Any
 from contextlib import suppress
 from app.models.orm_models.users import User
-from app.exceptions.train_model import ArtifactWriteException
+from app.exceptions.artifact import ArtifactWriteException
 
 
 
@@ -21,10 +20,26 @@ def save_upload_to_temp_csv(upload: UploadFile, suffix) -> str:
     Returns:
         Absolute path to the temp file (caller is responsible for deletion).
     """
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        upload.file.seek(0)
-        shutil.copyfileobj(upload.file, tmp)
-        return tmp.name
+    base = os.path.join("uploads", "_tmp")
+    os.makedirs(base, exist_ok=True)
+
+    fd, path = tempfile.mkstemp(dir=base, suffix=suffix)
+
+    try:
+        with os.fdopen(fd, "wb") as f:
+            upload.file.seek(0)
+            while True:
+                chunk = upload.file.read(1024 * 1024)  # 1MB
+                if not chunk:
+                    break
+                f.write(chunk)
+        return path
+    except Exception:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
 
 
 def unique_model_path(user: User, fp, dirpath: str = "saved_models") -> str:

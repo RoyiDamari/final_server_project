@@ -9,23 +9,6 @@ from app.models.enums import RowStatus
 
 class PredictionRepository:
     @staticmethod
-    async def get_model_for_user_applied(
-            db: AsyncSession,
-            user_id: int,
-            model_id: int
-    ) -> Optional[TrainedModel]:
-        """
-        Return the user's TrainedModel row only if it is in 'applied' status.
-        Otherwise, None (not found / not owned / not ready).
-        """
-        stmt = select(TrainedModel).where(
-            TrainedModel.id == model_id,
-            TrainedModel.user_id == user_id,
-            TrainedModel.status == RowStatus.applied,
-        )
-        return (await db.execute(stmt)).scalar_one_or_none()
-
-    @staticmethod
     async def try_insert_pending(
             db: AsyncSession,
             user_id: int,
@@ -55,32 +38,13 @@ class PredictionRepository:
     async def get_by_user_fingerprint(
             db: AsyncSession,
             user_id: int,
-            findeprint: str
+            fingerprint: str
     ) -> Optional[Prediction]:
         q = select(Prediction).where(
             Prediction.user_id == user_id,
-            Prediction.fingerprint == findeprint,
+            Prediction.fingerprint == fingerprint,
         )
         return (await db.execute(q)).scalar_one_or_none()
-
-    @staticmethod
-    async def restart_existing_row(
-            db: AsyncSession,
-            user_id: int,
-            fingerprint: str
-    ) -> Optional[int]:
-        upd = (
-            update(Prediction)
-            .where(
-                Prediction.user_id == user_id,
-                Prediction.fingerprint == fingerprint,
-                Prediction.status == RowStatus.failed,
-            )
-            .values(status=RowStatus.pending)
-            .returning(Prediction.id)
-        )
-        res = await db.execute(upd)
-        return res.scalar_one_or_none()
 
     @staticmethod
     async def mark_applied(db: AsyncSession, pred_id: int, result: str) -> Optional[Prediction]:
@@ -93,14 +57,6 @@ class PredictionRepository:
         res = await db.execute(upd)
         new_id = res.scalar_one_or_none()
         return await db.get(Prediction, new_id) if new_id is not None else None
-
-    @staticmethod
-    async def mark_failed(db: AsyncSession, pred_id: int) -> None:
-        await db.execute(
-            update(Prediction)
-            .where(Prediction.id == pred_id)
-            .values(status=RowStatus.failed)
-        )
 
     @staticmethod
     async def get_latest_created_at_all_users(db: AsyncSession) -> Optional[datetime]:
@@ -127,3 +83,20 @@ class PredictionRepository:
     async def get_all_users_predictions(db: AsyncSession) -> list[Prediction]:
         stmt = select(Prediction).where(Prediction.user.has(is_active=True)).order_by(Prediction.created_at)
         return (await db.execute(stmt)).scalars().all()
+
+    @staticmethod
+    async def get_model_for_user_applied(
+            db: AsyncSession,
+            user_id: int,
+            model_id: int
+    ) -> Optional[TrainedModel]:
+        """
+        Return the user's TrainedModel row only if it is in 'applied' status.
+        Otherwise, None (not found / not owned / not ready).
+        """
+        stmt = select(TrainedModel).where(
+            TrainedModel.id == model_id,
+            TrainedModel.user_id == user_id,
+            TrainedModel.status == RowStatus.applied,
+        )
+        return (await db.execute(stmt)).scalar_one_or_none()

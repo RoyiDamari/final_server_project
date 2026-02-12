@@ -13,18 +13,6 @@ class ModelNotFoundException(BaseAppException):
         )
 
 
-class ArtifactMissingException(BaseAppException):
-    """Raised when the model artifact path is missing or the file does not exist on disk."""
-
-    def __init__(self, log_detail: str | None = None):
-        super().__init__(
-            detail="Model artifact is missing",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            log_detail=log_detail,
-            suppress_log=False,
-        )
-
-
 class FeatureMismatchException(BaseAppException):
     """Raised when provided feature keys do not match the model's expected features."""
 

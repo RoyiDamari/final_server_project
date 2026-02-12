@@ -21,4 +21,3 @@ class ActionType(str, Enum):
 class RowStatus(str, Enum):
     pending = "pending"
     applied = "applied"
-    failed  = "failed"

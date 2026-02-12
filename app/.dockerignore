@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+
+# Editor
+.idea/
+.vscode/
+
+# Venv
+.venv/
+env/
+ENV/
+.env
+
+# Git
+.git/
+.gitignore
+
+# Runtime outputs
+logs/
+saved_models/
+*.log
+
+# Local datasets
+data/
+*.csv
+*.xlsx
+
+# Other
+test/

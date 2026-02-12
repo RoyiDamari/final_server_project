@@ -46,7 +46,7 @@ def app_exception_handlers(app: FastAPI):
                 errors.error(
                     f"{exc.__class__.__name__} at {request.method} {request.url.path} "
                     f"from {(request.client.host if request.client else 'unknown')}: "
-                    f"{getattr(exc, 'log_detail', exc.detail)}"
+                    f"{(exc.log_detail or exc.detail)}"
                 )
 
         return JSONResponse(

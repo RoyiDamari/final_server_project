@@ -48,18 +48,6 @@ class TokenCreditRepository:
         )
 
     @staticmethod
-    async def mark_failed(db: AsyncSession, user_id: int, key: str) -> None:
-        """Set status=failed for this key."""
-        await db.execute(
-            update(TokenCredit)
-            .where(
-                TokenCredit.user_id == user_id,
-                TokenCredit.key == key,
-            )
-            .values(status=RowStatus.failed)
-        )
-
-    @staticmethod
     async def get_user_token_history(db: AsyncSession, user_id: int) -> list[Mapping[str, Any]]:
         """
         Return token credit history for a given user_id including username from User.

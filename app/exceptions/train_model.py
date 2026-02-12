@@ -75,11 +75,3 @@ class TrainingFailedException(BaseAppException):
             suppress_log=False,
         )
 
-class ArtifactWriteException(BaseAppException):
-    def __init__(self, log_detail: str | None = None):
-        super().__init__(
-            detail="Failed to persist model artifact",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            log_detail=log_detail,
-            suppress_log=False,
-        )

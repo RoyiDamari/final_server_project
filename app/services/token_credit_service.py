@@ -56,7 +56,6 @@ class TokenCreditService:
         if inserted:
             new_balance = await UserRepo.add_tokens(db, user.id, amount)
             if new_balance is None:
-                await TCRepo.mark_failed(db, user.id, key)
                 raise BalanceMustBeZeroException()
 
             await TCRepo.mark_applied(db, user.id, key, new_balance)
@@ -67,8 +66,6 @@ class TokenCreditService:
             info = await TCRepo.get_by_key_status_open_balance(db, user.id, key)
             if info and info["status"] == RowStatus.applied and info["open_balance"] is not None:
                 result_balance = info["open_balance"]
-            elif info and info["status"] == RowStatus.failed:
-                raise BalanceMustBeZeroException()
             else:
                 raise PurchaseInProgressException()
 
