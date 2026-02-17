@@ -34,14 +34,13 @@ class AuthRepository:
             db: AsyncSession,
             token_hash: str,
     ) -> Optional[AuthSession]:
-        stmt = (
+        q = (
             select(AuthSession)
             .where(AuthSession.refresh_token_hash == token_hash)
             .options(selectinload(AuthSession.user))
             .with_for_update()
         )
-        result = await db.execute(stmt)
-        return result.unique().scalars().first()
+        return (await db.execute(q)).unique().scalars().first()
 
     @staticmethod
     async def rotate_refresh_token(
@@ -51,7 +50,7 @@ class AuthRepository:
         last_token_hash: str,
         new_expiry: datetime,
     ) -> None:
-        stmt = (
+        q = (
             update(AuthSession)
             .where(AuthSession.session_id == session_id)
             .values(
@@ -60,21 +59,22 @@ class AuthRepository:
                 expires_at=new_expiry,
             )
         )
-        await db.execute(stmt)
+        await db.execute(q)
 
     @staticmethod
     async def revoke_by_session(db: AsyncSession, session_id: str) -> None:
-        stmt = (
+        q = (
             update(AuthSession)
             .where(AuthSession.session_id == session_id)
             .values(revoked=True)
         )
-        await db.execute(stmt)
+        await db.execute(q)
 
     @staticmethod
-    async def revoke_all_session_by_user(db: AsyncSession, user_id: int) -> None:
-        stmt = (update(AuthSession)
-                .where(AuthSession.user_id == user_id)
-                .values(revoked=True)
-                )
-        await db.execute(stmt)
+    async def revoke_all_sessions_by_user(db: AsyncSession, user_id: int) -> None:
+        q = (
+            update(AuthSession)
+            .where(AuthSession.user_id == user_id)
+            .values(revoked=True)
+        )
+        await db.execute(q)

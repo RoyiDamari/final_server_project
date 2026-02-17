@@ -29,9 +29,4 @@ def delete_user(token: str, username: str, password: str, confirm_delete_with_ba
     )
 
 
-def get_all_users_tokens(token: str):
-    return api_call(
-        "/user/all_users_tokens",
-        method="GET",
-        token=token,
-    )
+

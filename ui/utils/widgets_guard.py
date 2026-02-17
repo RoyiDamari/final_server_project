@@ -24,7 +24,7 @@ def render_not_enough_tokens_warning(min_tokens: int):
         st.warning(
             f"🚫 You need **{min_tokens} tokens** to use this feature.\n"
             f"💰 You currently have **{balance} tokens**.\n\n"
-            "ℹ️ You can buy more tokens **only after finishing your current balance**."
+            "ℹ️ You can buy more tokens from the **Buy Tokens** page."
         )
 
 

@@ -5,11 +5,9 @@ from sqlalchemy.exc import IntegrityError
 from app.services.user_service import UserService
 from app.services.auth_service import AuthService
 from app.exceptions.user import UsernameTakenException, EmailTakenException
-from app.models.pydantic_models.user import (RegisterUserRequest, RegisterUserResponse, DeleteUserResponse,
-                                             UserTokensResponse, DeleteUserRequest)
-from app.models.pydantic_models.general import MetadataResponse
+from app.models.pydantic_models.user import (RegisterUserRequest, RegisterUserResponse,
+                                             DeleteUserRequest, DeleteUserResponse)
 from app.models.orm_models import User
-from app.models.enums import ActionType
 from app.utils.rate_limit import rate_limited
 from app.utils.redis import get_redis
 from app.database import get_db
@@ -91,21 +89,5 @@ async def delete_user(
     )
 
 
-@router.get("/all_users_tokens", status_code=status.HTTP_200_OK, response_model=MetadataResponse[UserTokensResponse])
-@rate_limited("all_users_tokens", **config.RATE_LIMITS["all_users_tokens"])
-async def get_all_users_tokens(
-        db: AsyncSession = Depends(get_db),
-        user: User = Depends(AuthService.validate_user)
-):
-    """
-    Charge a metadata token and return balances of all active users.
 
-    Args:
-        db: Async DB session.
-        user: Authenticated user.
-
-    Returns:
-        List[UserTokensResponse]: [{"username", "tokens"}, ...].
-    """
-    return await UserService.get_all_users_tokens(db, user, ActionType.METADATA)
 

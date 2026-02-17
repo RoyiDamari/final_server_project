@@ -83,8 +83,8 @@ async def train_model(
 @router.get("/user_models", status_code=status.HTTP_200_OK, response_model=list[TrainedModelResponse])
 @rate_limited("user_models", **config.RATE_LIMITS["user_models"])
 async def get_user_models(
-        user: User = Depends(AuthService.validate_user),
         db: AsyncSession = Depends(get_db),
+        user: User = Depends(AuthService.validate_user),
 ):
     """
     List the authenticated user's trained models.
@@ -108,9 +108,9 @@ async def get_user_models(
 @router.get("/all_users_models", status_code=status.HTTP_200_OK, response_model=MetadataResponse[TrainedModelResponse])
 @rate_limited("all_users_models", **config.RATE_LIMITS["all_users_models"])
 async def get_all_users_models(
-        user: User = Depends(AuthService.validate_user),
         db: AsyncSession = Depends(get_db),
         redis: Redis = Depends(get_redis),
+        user: User = Depends(AuthService.validate_user),
 ):
     return await TrainModelService.get_all_users_models(db, redis, user, ActionType.METADATA)
 
@@ -118,8 +118,8 @@ async def get_all_users_models(
 
 @router.get("/user_models_internal", status_code=status.HTTP_200_OK, response_model=list[TrainedModelResponse])
 async def get_user_models_internal(
-    user: User = Depends(AuthService.validate_user),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(AuthService.validate_user),
 ):
     """
     INTERNAL endpoint.

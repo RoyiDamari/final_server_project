@@ -155,6 +155,13 @@ class TrainModelService:
 
     @staticmethod
     async def get_user_models(db: AsyncSession, user: User) -> list[TrainedModel]:
+        """
+        Return the authenticated user's models.
+
+        - No token charge
+        - No side effects
+        - Empty list if none exist
+        """
         models = await TMRepo.get_user_models(db, user.id)
 
         log_action(

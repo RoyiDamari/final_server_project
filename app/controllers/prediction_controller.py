@@ -29,7 +29,29 @@ async def predict(
         user: User = Depends(AuthService.validate_user),
 ):
     """
-    Run a prediction on a user's trained model and log it atomically with the token charge.
+    Run a prediction using one of the authenticated user's trained models.
+
+    Behavior:
+      - Loads the selected model artifact from disk (must belong to user, status=applied).
+      - Creates (or reuses) an idempotent prediction row keyed by fingerprint.
+      - Runs prediction computation and, on success, charges tokens and marks the row applied.
+      - Invalidates/bump global prediction metadata cache version in Redis after success.
+
+    Args:
+        predict_req: PredictionRequest containing model_id and feature_values.
+        db: Async SQLAlchemy session (request-scoped).
+        redis: Redis client used for cache invalidation/versioning of prediction metadata.
+        user: Authenticated user (injected via AuthService.validate_user).
+
+    Returns:
+        ActionResponse[PredictionResponse]: The persisted prediction row plus billing metadata
+        (charged/balance) according to your ActionResponse schema.
+
+    Raises:
+        ModelNotFoundException: If model does not exist / not owned / not applied.
+        FeatureMismatchException: If provided feature keys don't match the model's expected features.
+        PredictionInProgressException: If a duplicate request is already pending.
+        PredictionFailedException: If prediction fails (timeout, artifact issues, unexpected errors).
     """
     return await PredictionService.predict(
         db=db,
@@ -47,7 +69,18 @@ async def get_user_predictions(
         user: User = Depends(AuthService.validate_user),
 ):
     """
-    Charge a metadata token and list the caller’s predictions.
+    Return the authenticated user's prediction history.
+
+    Notes:
+      - No metadata billing should occur here (based on your service implementation).
+      - No Redis caching/versioning is involved in this endpoint.
+
+    Args:
+        db: Async SQLAlchemy session (request-scoped).
+        user: Authenticated user (injected via AuthService.validate_user).
+
+    Returns:
+        list[PredictionResponse]: The user's predictions ordered by created_at (per repository logic).
     """
     return await PredictionService.get_user_predictions(db, user)
 
@@ -60,6 +93,22 @@ async def get_all_users_predictions(
         user: User = Depends(AuthService.validate_user),
 ):
     """
-    Charge a metadata token and list all users’ predictions (admin-like view).
+    Return predictions across all active users with per-user-per-version metadata billing.
+
+    Behavior (high level):
+      - Uses Redis to cache the global list and store a global version key.
+      - Charges the caller at most once per global version (based on Redis "last seen" key).
+      - Returns cached list when version matches; refreshes cache when DB version changes.
+
+    Args:
+        db: Async SQLAlchemy session (request-scoped).
+        redis: Redis client used for caching/versioning and per-user "last seen" tracking.
+        user: Authenticated user (injected via AuthService.validate_user).
+
+    Returns:
+        MetadataResponse[PredictionResponse]:
+            - data: list of all users' predictions (active users only if your repo filters that way)
+            - charged: whether the metadata token was charged on this request
+            - balance: resulting user token balance
     """
     return await PredictionService.get_all_users_predictions(db, redis, user, ActionType.METADATA)

@@ -20,8 +20,8 @@ router = APIRouter(prefix="/assist", tags=["assist"])
 async def explain_param_route(
         payload: AssistExplainRequest,
         db: AsyncSession = Depends(get_db),
-        user: User = Depends(AuthService.validate_user),
         redis: Redis = Depends(get_redis),
+        user: User = Depends(AuthService.validate_user),
 ):
     return await AssistService.explain_param(
         db, redis, user, ActionType.ASSIST, payload.model_type, payload.param_key, payload.context)

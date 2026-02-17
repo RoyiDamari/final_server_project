@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, UUID4, Field, ConfigDict, field_validator
-from app.exceptions.token_credit import InvalidCreditCardException, BuyTokensException
+from app.exceptions.token_credit import InvalidCreditCardException, InvalidPurchaseAmountException
 from datetime import datetime
 from app.models.enums import RowStatus
 from app.config import config
@@ -23,7 +23,7 @@ class BuyTokensRequest(BaseModel):
     @classmethod
     def _validate_amount(cls, value: int) -> int:
         if value is None or value <= 0 or value > config.MAX_TOKENS_PER_PURCHASE:
-            raise BuyTokensException()
+            raise InvalidPurchaseAmountException()
         return value
 
 
@@ -32,8 +32,10 @@ class BuyTokensResponse(BaseModel):
     balance: int
 
 
-class TokenCreditHistoryResponse(BaseModel):
+class TokenCreditResponse(BaseModel):
     username: str
-    open_balance: int | None
+    amount: int | None
+    balance_after: int | None
+    current_tokens: int
     status: RowStatus
     created_at: datetime

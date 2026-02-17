@@ -35,7 +35,6 @@ class TrainModelRepository:
             int id if inserted now
             None if a row already exists (any status) → caller inspects and decides
         """
-
         values = dict(
             user_id=user_id,
             model_type=model_type,
@@ -47,14 +46,13 @@ class TrainModelRepository:
             model_path=model_path,
             status=RowStatus.pending,
         )
-        stmt = (
+        q = (
             pg_insert(TrainedModel)
             .values(**values)
             .on_conflict_do_nothing(index_elements=["user_id", "fingerprint"])
             .returning(TrainedModel.id)
         )
-        res = await db.execute(stmt)
-        return res.scalar_one_or_none()
+        return (await db.execute(q)).scalar_one_or_none()
 
     @staticmethod
     async def get_by_user_fingerprint(
@@ -66,12 +64,14 @@ class TrainModelRepository:
         Return the single TrainedModel for (user_id, fingerprint) or None.
         Relies on a UNIQUE(user_id, fingerprint) constraint.
         """
-        stmt = select(TrainedModel).where(
+        q = (
+            select(TrainedModel)
+            .where(
             TrainedModel.user_id == user_id,
-            TrainedModel.fingerprint == fingerprint,
+            TrainedModel.fingerprint == fingerprint
+            )
         )
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return (await db.execute(q)).scalar_one_or_none()
 
     @staticmethod
     async def mark_applied(
@@ -83,17 +83,13 @@ class TrainModelRepository:
         Transition pending → applied and return the ORM row.
         Returns None if the row wasn't pending (e.g., race or reconciler).
         """
-        upd = (
+        q = (
             update(TrainedModel)
             .where(TrainedModel.id == trained_model_id, TrainedModel.status == RowStatus.pending)
             .values(status=RowStatus.applied, metrics=metrics)
-            .returning(TrainedModel.id)
+            .returning(TrainedModel)
         )
-        res = await db.execute(upd)
-        updated_id = res.scalar_one_or_none()
-        if updated_id is None:
-            return None
-        return await db.get(TrainedModel, updated_id)
+        return (await db.execute(q)).scalar_one_or_none()
 
     @staticmethod
     async def get_latest_created_at_all_users(db: AsyncSession) -> Optional[datetime]:
@@ -101,11 +97,11 @@ class TrainModelRepository:
         Return datetime of the latest created model among ACTIVE users,
         or None if no trained models exist.
         """
-        stmt = select(func.max(TrainedModel.created_at)).where(
-            TrainedModel.user.has(is_active=True)
+        q = (
+            select(func.max(TrainedModel.created_at)).
+            where(TrainedModel.user.has(is_active=True))
         )
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return (await db.execute(q)).scalar_one_or_none()
 
     @staticmethod
     async def get_user_models(db: AsyncSession, user_id: int) -> list[TrainedModel]:
@@ -119,11 +115,12 @@ class TrainModelRepository:
         Returns:
             List[TrainedModel]: ORM rows for that user.
         """
-        result = await db.execute(
+        q = (
             select(TrainedModel)
             .where(TrainedModel.user_id == user_id)
-            .order_by(TrainedModel.created_at))
-        return result.scalars().all()
+            .order_by(TrainedModel.created_at)
+        )
+        return (await db.execute(q)).scalars().all()
 
 
     @staticmethod
@@ -137,22 +134,26 @@ class TrainModelRepository:
         Returns:
             List[TrainedModel]: ORM rows for all users.
         """
-        stmt = (select(TrainedModel).
-                where(TrainedModel.user.has(is_active=True))
-                .order_by(TrainedModel.created_at))
-        return (await db.execute(stmt)).scalars().all()
+        q = (
+            select(TrainedModel).
+            where(TrainedModel.user.has(is_active=True))
+            .order_by(TrainedModel.created_at)
+        )
+        return (await db.execute(q)).scalars().all()
 
     @staticmethod
-    async def list_model_paths_applied(db) -> set[str]:
+    async def list_model_paths_applied(db: AsyncSession) -> set[str]:
         """
         Return a set of model_path strings for rows that are in applied state.
         Paths may be relative ("saved_models/...") or absolute depending on your setup.
         """
-        stmt = select(TrainedModel.model_path).where(
+        q = (
+            select(TrainedModel.model_path).
+            where(
             TrainedModel.status == RowStatus.applied,
             TrainedModel.model_path.is_not(None),
-            TrainedModel.user.has(is_active=True),
+            TrainedModel.user.has(is_active=True)
+            )
         )
-        res = await db.execute(stmt)
-
-        return {p for p in res.scalars().all() if p}
+        result = await db.execute(q)
+        return {p for p in result.scalars().all() if p}

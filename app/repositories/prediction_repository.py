@@ -17,7 +17,7 @@ class PredictionRepository:
             input_data: dict,
             fingerprint: str
     ) -> Optional[int]:
-        stmt = (
+        q = (
             pg_insert(Prediction)
             .values(
                 user_id=user_id,
@@ -31,8 +31,7 @@ class PredictionRepository:
             .on_conflict_do_nothing(index_elements=["user_id", "fingerprint"])
             .returning(Prediction.id)
         )
-        res = await db.execute(stmt)
-        return res.scalar_one_or_none()
+        return (await db.execute(q)).scalar_one_or_none()
 
     @staticmethod
     async def get_by_user_fingerprint(
@@ -40,23 +39,25 @@ class PredictionRepository:
             user_id: int,
             fingerprint: str
     ) -> Optional[Prediction]:
-        q = select(Prediction).where(
+        result = (
+            select(Prediction).
+            where(
             Prediction.user_id == user_id,
-            Prediction.fingerprint == fingerprint,
+            Prediction.fingerprint == fingerprint
+            )
         )
-        return (await db.execute(q)).scalar_one_or_none()
+        return (await db.execute(result)).scalar_one_or_none()
 
     @staticmethod
     async def mark_applied(db: AsyncSession, pred_id: int, result: str) -> Optional[Prediction]:
-        upd = (
+        q = (
             update(Prediction)
             .where(Prediction.id == pred_id, Prediction.status == RowStatus.pending)
             .values(status=RowStatus.applied, prediction_result=result)
-            .returning(Prediction.id)
+            .returning(Prediction)
         )
-        res = await db.execute(upd)
-        new_id = res.scalar_one_or_none()
-        return await db.get(Prediction, new_id) if new_id is not None else None
+        return (await db.execute(q)).scalar_one_or_none()
+
 
     @staticmethod
     async def get_latest_created_at_all_users(db: AsyncSession) -> Optional[datetime]:
@@ -64,25 +65,29 @@ class PredictionRepository:
         Return datetime of the latest prediction created across ACTIVE users,
         or None if no predictions exist.
         """
-        stmt = select(func.max(Prediction.created_at)).where(
-            Prediction.user.has(is_active=True)
+        q = (
+            select(func.max(Prediction.created_at)).
+            where(Prediction.user.has(is_active=True))
         )
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return (await db.execute(q)).scalar_one_or_none()
 
     @staticmethod
     async def get_user_predictions(db: AsyncSession, user_id: int) -> list[Prediction]:
-        result = await db.execute(
+        q = (
             select(Prediction)
             .where(Prediction.user_id == user_id)
             .order_by(Prediction.created_at)
         )
-        return result.scalars().all()
+        return (await db.execute(q)).scalars().all()
 
     @staticmethod
     async def get_all_users_predictions(db: AsyncSession) -> list[Prediction]:
-        stmt = select(Prediction).where(Prediction.user.has(is_active=True)).order_by(Prediction.created_at)
-        return (await db.execute(stmt)).scalars().all()
+        q = (
+            select(Prediction).
+            where(Prediction.user.has(is_active=True)).
+            order_by(Prediction.created_at)
+        )
+        return (await db.execute(q)).scalars().all()
 
     @staticmethod
     async def get_model_for_user_applied(
@@ -94,9 +99,12 @@ class PredictionRepository:
         Return the user's TrainedModel row only if it is in 'applied' status.
         Otherwise, None (not found / not owned / not ready).
         """
-        stmt = select(TrainedModel).where(
+        q = (
+            select(TrainedModel).
+            where(
             TrainedModel.id == model_id,
             TrainedModel.user_id == user_id,
-            TrainedModel.status == RowStatus.applied,
+            TrainedModel.status == RowStatus.applied
+            )
         )
-        return (await db.execute(stmt)).scalar_one_or_none()
+        return (await db.execute(q)).scalar_one_or_none()

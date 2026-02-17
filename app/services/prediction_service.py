@@ -69,7 +69,7 @@ class PredictionService:
                 raise PredictionInProgressException()
             if existing.status == RowStatus.applied:
                 fresh_balance = await URepo.get_tokens_by_id(db, user.id)
-                return {"data": existing, "charged": False, "balance": fresh_balance }
+                return {"data": existing, "charged": False, "balance": fresh_balance}
 
         try:
             result_str = await PredictionService._run_prediction(

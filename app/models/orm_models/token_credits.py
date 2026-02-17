@@ -6,6 +6,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 from app.models.enums import RowStatus
+from app.config import config
 
 
 class TokenCredit(Base):
@@ -13,9 +14,11 @@ class TokenCredit(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "key", name="ux_token_credits_user_key"),
         CheckConstraint(
-            "(status <> 'applied' AND open_balance IS NULL) "
-            "OR (status = 'applied' AND open_balance BETWEEN 1 AND 100)",
-            name="ck_token_credits_open_balance_when_applied",
+            "(status <> 'applied' AND amount IS NULL AND balance_after IS NULL) "
+            "OR (status = 'applied' "
+            f"AND amount BETWEEN 1 AND {config.MAX_TOKENS_PER_PURCHASE} "
+            f"AND balance_after BETWEEN 0 AND {config.MAX_TOKENS})",
+            name="ck_token_credits_amount_balance_after_when_applied",
         ),
         Index(
             "ux_token_credits_one_pending_per_user",
@@ -28,7 +31,8 @@ class TokenCredit(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     key: Mapped[str] = mapped_column(String(64), nullable=False)
-    open_balance: Mapped[int] = mapped_column(Integer, nullable=True)
+    amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    balance_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[RowStatus] = mapped_column(
         SAEnum(RowStatus, name="row_status", native_enum=True),
         nullable=False,

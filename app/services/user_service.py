@@ -5,11 +5,11 @@ from app.repositories.user_repository import UserRepository as UserRepo
 from app.repositories.auth_repository import AuthRepository as ARepo
 from app.models.pydantic_models.user import RegisterUserRequest, RegisterUserResponse, DeleteUserResponse
 from app.models.orm_models.users import User
-from app.models.enums import ActionType
 from app.exceptions.user import (UserAlreadyDeletedException, UserHasRemainingTokensException,
                                  DeleteUserConfirmationException)
 from app.utils.password_hashing import get_password_hash, verify_password
-from app.utils.cache_invalidation import invalidate_global_predictions_cache, invalidate_global_models_cache
+from app.utils.cache_invalidation import (invalidate_global_predictions_cache, invalidate_global_models_cache,
+                                          invalidate_global_token_credits_cache)
 from app.core.logs import log_action
 
 
@@ -108,11 +108,12 @@ class UserService:
         if not deleted:
             raise UserAlreadyDeletedException()
 
-        await ARepo.revoke_all_session_by_user(db, user.id)
+        await ARepo.revoke_all_sessions_by_user(db, user.id)
 
         ts = datetime.now(timezone.utc).isoformat()
         await invalidate_global_models_cache(redis, ts)
         await invalidate_global_predictions_cache(redis, ts)
+        await invalidate_global_token_credits_cache(redis, ts)
 
         log_action(
             "user_has_been_deleted_his_account",
@@ -123,36 +124,5 @@ class UserService:
 
         return DeleteUserResponse(message="User deleted successfully")
 
-    @staticmethod
-    async def get_all_users_tokens(
-            db: AsyncSession,
-            user: User,
-            action: ActionType,
-    ) -> dict:
-        """
-        Return all users' active token balances.
 
-        Charging rules:
-        - Fetch FIRST
-        - If no rows → no charge
-        - If rows exist → charge metadata token
-        """
-
-        all_users_tokens = await UserRepo.get_all_users_tokens(db)
-
-        if not all_users_tokens:
-            return {"data": [], "charged": False, "balance": user.tokens}
-
-        balance = await UserRepo.update_tokens(db, user.id, action.cost)
-
-        log_action(
-            event="user_viewed_all_users_tokens",
-            user_id=user.id,
-            username=user.username,
-            action=action,
-            charged=action.cost,
-            balance_after=balance,
-        )
-
-        return {"data": all_users_tokens, "charged": True, "balance": balance}
 

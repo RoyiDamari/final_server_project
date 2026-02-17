@@ -5,12 +5,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import CITEXT
 from .base import Base
+from app.config import config
 
 
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("tokens >= 0 AND tokens <= 1000", name="ck_users_tokens_0_1000"),
+        CheckConstraint(f"tokens >= 0 AND tokens <= {config.MAX_TOKENS}",
+                        name=f"ck_users_tokens_0_{config.MAX_TOKENS}"),
         Index(
             "ux_users_username_active",
             "username",

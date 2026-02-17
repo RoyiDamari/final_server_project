@@ -36,3 +36,11 @@ async def invalidate_global_predictions_cache(redis: Redis, ts: str) -> None:
         errors.warning(f"cache bump failed: {e!r}")
 
 
+async def invalidate_global_token_credits_cache(redis: Redis, ts: str) -> None:
+    try:
+        list_key = "token_credits:all:list"
+        ver_key = "token_credits:all:version"
+        await CRepo.set_version(redis, ver_key, ts)
+        await CRepo.delete(redis, list_key)
+    except Exception as e:
+        errors.warning(f"token credits cache bump failed: {e!r}")

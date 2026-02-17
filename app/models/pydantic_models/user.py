@@ -1,10 +1,10 @@
 from pydantic import BaseModel, EmailStr, UUID4, Field, field_validator
-from app.exceptions.user import  UsernameFormatException, PasswordFormatException
+from app.exceptions.user import UsernameFormatException, PasswordFormatException
 import re
-
 
 USERNAME_REGEX = r"^[a-zA-Z0-9_-]{3,20}$"
 PASSWORD_REGEX = r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#$%^&+=!]{6,20}$"
+
 
 class RegisterUserRequest(BaseModel):
     first_name: str = Field(min_length=1, max_length=50)
@@ -41,11 +41,6 @@ class RegisterUserRequest(BaseModel):
 
 class RegisterUserResponse(BaseModel):
     message: str
-
-
-class UserTokensResponse(BaseModel):
-    username: str
-    tokens: int
 
 
 class DeleteUserRequest(BaseModel):

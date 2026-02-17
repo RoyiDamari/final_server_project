@@ -10,9 +10,17 @@ def buy_tokens(token: str, credit_card: str, amount: int, idempotency_key: str):
     )
 
 
-def get_user_token_history(token: str):
+def get_user_tokens(token: str):
     return api_call(
-        "/token_credit/token_history",
+        "/token_credit/user_tokens",
+        method="GET",
+        token=token,
+    )
+
+
+def get_all_users_tokens(token: str):
+    return api_call(
+        "/token_credit/all_users_tokens",
         method="GET",
         token=token,
     )

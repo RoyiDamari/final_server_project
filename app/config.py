@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     REDIS_TTL: int = 86400
 
     MAX_TOKENS_PER_PURCHASE: int = 100
+    MAX_TOKENS: int = 200
     TOKEN_PRICE: ClassVar[float] = 0.05
 
     # --- JWT Auth ---
@@ -36,7 +37,7 @@ class Settings(BaseSettings):
         "register": {"max_requests": 5, "window": 3600},
         "buy_tokens": {"max_requests": 3, "window": 60},
         "delete": {"max_requests": 2, "window": 300},
-        "token_history": {"max_requests": 10, "window": 60},
+        "user_tokens": {"max_requests": 10, "window": 60},
         "all_users_tokens": {"max_requests": 5, "window": 60},
         "login": {"max_requests": 10, "window": 600},
         "refresh": {"max_requests": 10, "window": 600},

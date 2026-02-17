@@ -3,7 +3,7 @@ import uuid
 import re
 from ui.api.token_credit import buy_tokens
 from ui.utils.validators import normalize_credit_card_number, validate_credit_card_number
-from ui.config import TOKEN_PRICE
+from ui.config import MAX_TOKENS, MAX_TOKENS_PER_PURCHASE, TOKEN_PRICE
 from ui.utils.session_guard import ensure_authenticated
 from ui.utils.api_helpers import handle_api_error
 
@@ -18,26 +18,49 @@ def _on_cc_change():
     formatted = _format_cc_for_display(raw)
     st.session_state.cc_input = formatted
 
+def _ensure_purchase_key() -> str:
+    """
+    Ensures one stable idempotency key per *attempt*.
+    Do NOT clear this until success is confirmed.
+    """
+    if not st.session_state.get("purchase_key"):
+        st.session_state.purchase_key = str(uuid.uuid4())
+    return st.session_state.purchase_key
+
 
 def buy_tokens_ui(token: str):
     st.header("💳 Buy Tokens")
 
+    st.session_state.setdefault("purchase_key", None)
+    st.session_state.setdefault("buy_in_flight", False)
+    st.session_state.setdefault("cc_input", "")
+    st.session_state.setdefault("token_balance", 0)
+
     if "purchase_success_message" in st.session_state:
         st.success(st.session_state.pop("purchase_success_message"))
 
-    if "purchase_key" not in st.session_state:
-        st.session_state.purchase_key = None
+    balance = st.session_state.get("token_balance", 0) or 0
+    remaining_capacity = max(0, MAX_TOKENS - balance)
+    max_buy = min(MAX_TOKENS_PER_PURCHASE, remaining_capacity)
 
-    if "cc_input" not in st.session_state:
-        st.session_state.cc_input = ""
+    if max_buy == 0:
+        st.info(f"You're at the maximum balance ({MAX_TOKENS}). Use some tokens before buying more.")
+        return
 
-    amount = st.slider(
-        "Number of tokens to buy",
-        min_value=1,
-        max_value=100,
-        value=10,
-        key="buy_amount"
-    )
+    if max_buy == 1:
+        amount = 1
+        st.info("You can buy **1** token (you’re almost at the cap).")
+    else:
+        default_value = min(st.session_state.get("buy_amount", 10), max_buy)
+
+        amount = st.slider(
+            "Number of tokens to buy",
+            min_value=1,
+            max_value=max_buy,
+            value=default_value,
+            key="buy_amount",
+            disabled=st.session_state.buy_in_flight,
+        )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -49,11 +72,14 @@ def buy_tokens_ui(token: str):
         "Credit Card (16 digits)",
         key="cc_input",
         on_change=_on_cc_change,
-        placeholder="1234-5678-9012-3456"
+        placeholder="1234-5678-9012-3456",
+        disabled=st.session_state.buy_in_flight
     )
 
-    with st.form("buy_tokens_form"):
-        submitted = st.form_submit_button(f"Buy Tokens (${amount * TOKEN_PRICE:.2f})")
+    submitted = st.button(
+        f"Buy Tokens (${amount * TOKEN_PRICE:.2f})",
+        disabled=st.session_state.buy_in_flight,
+    )
 
     if submitted:
         normalized_cc = normalize_credit_card_number(credit_card)
@@ -63,32 +89,36 @@ def buy_tokens_ui(token: str):
             st.warning(card_error)
             return
 
-        if not st.session_state.purchase_key:
-            st.session_state.purchase_key = str(uuid.uuid4())
+        st.session_state.buy_in_flight = True
 
-        with st.spinner("Processing purchase..."):
-            resp = buy_tokens(
-                token,
-                normalized_cc,
-                amount,
-                idempotency_key=st.session_state.purchase_key
-            )
+        key = _ensure_purchase_key()
 
-        handle_api_error(resp)
+        try:
+            with st.spinner("Processing purchase..."):
+                resp = buy_tokens(
+                    token,
+                    normalized_cc,
+                    amount,
+                    idempotency_key=key
+                )
 
-        message = resp.get("message")
-        balance = resp.get("balance")
+            handle_api_error(resp)
 
-        if not message or balance is None:
-            st.error("Unexpected server response. Please try again later.")
-            return
+            message = resp.get("message")
+            balance = resp.get("balance")
 
-        # Persist across rerun
-        st.session_state["purchase_success_message"] = message
-        st.session_state["token_balance"] = balance
+            if not message or balance is None:
+                st.error("Unexpected server response. Please try again later.")
+                return
 
-        st.session_state.purchase_key = None
-        st.rerun()
+            st.session_state["purchase_success_message"] = message
+            st.session_state["token_balance"] = balance
+
+            st.session_state.purchase_key = None
+            st.rerun()
+
+        finally:
+            st.session_state.buy_in_flight = False
 
 
 def main():
