@@ -20,7 +20,8 @@ def render_all_users_tokens(token: str):
         with st.spinner("Fetching all users' token balances..."):
             resp = get_all_users_tokens(token)
             handle_api_error(resp)
-            handle_usage_balance(resp)
+
+        handle_usage_balance(resp)
 
         data = resp.get("data", [])
 

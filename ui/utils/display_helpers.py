@@ -4,29 +4,32 @@ from datetime import datetime
 from dateutil import tz
 
 
-def handle_usage_balance(resp: dict):
-    """
-    Updates UI and token balance after metadata / usage / list API calls.
+def init_sidebar_balance_slot():
+    # create per-run slot; safe because we recreate each rerun
+    st.session_state["_balance_slot"] = st.empty()
 
-    Expects backend-style response:
-      {"data": [...], "charged": bool, "balance": int}
-    """
+def show_sidebar_balance():
+    slot = st.session_state.get("_balance_slot")
+    if slot is None:
+        # fallback if someone forgot to init
+        slot = st.sidebar.empty()
+        st.session_state["_balance_slot"] = slot
+
+    slot.metric("💰 Tokens", st.session_state.get("token_balance", 0))
+
+def handle_usage_balance(resp: dict):
     charged = resp.get("charged")
     balance = resp.get("balance")
-
     if balance is None:
         return
 
     st.session_state["token_balance"] = balance
+    show_sidebar_balance()  # updates the existing slot immediately
 
     if charged:
         st.success(f"💳 Tokens charged. New balance: {balance}")
     else:
         st.info(f"Remaining balance: {balance}")
-
-
-def show_sidebar_balance():
-    st.sidebar.metric("💰 Tokens", st.session_state.get("token_balance", 0))
 
 
 def format_ts(ts: str) -> str:

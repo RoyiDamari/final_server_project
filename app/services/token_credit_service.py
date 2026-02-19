@@ -135,9 +135,11 @@ class TokenCreditService:
     ) -> Dict[str, Any]:
         """
         Return all users' token credit history (for metadata dashboard),
-        with per-user-per-version billing (same pattern as get_all_users_models).
+        with per-user-per-version billing.
 
         Version definition: max(TokenCredit.created_at) across ACTIVE users.
+        NOTE: charging updates User.tokens (not TokenCredit), so if we charge we must
+        fetch fresh data (cache would have stale current_tokens).
         """
 
         list_key = "tokens:all:list"
@@ -149,27 +151,6 @@ class TokenCreditService:
             return {"data": [], "charged": False, "balance": user.tokens}
 
         db_ver = db_ver_dt.isoformat()
-        redis_ver = await CRepo.get_version(redis, ver_key)
-
-        if redis_ver == db_ver:
-            cached = await CRepo.get_list(redis, list_key)
-            if cached is not None:
-                data = cached
-            else:
-                rows = await TCRepo.get_all_users_tokens(db)
-                data = [
-                    TokenCreditResponse.model_validate(dict(r)).model_dump(mode="json")
-                    for r in rows
-                ]
-                await CRepo.set_list(redis, list_key, data)
-        else:
-            rows = await TCRepo.get_all_users_tokens(db)
-            data = [
-                TokenCreditResponse.model_validate(dict(r)).model_dump(mode="json")
-                for r in rows
-            ]
-            await CRepo.set_list(redis, list_key, data)
-            await CRepo.set_version(redis, ver_key, db_ver)
 
         user_seen_ver = await CRepo.get_version(redis, user_seen_key)
         if user_seen_ver == db_ver:
@@ -180,12 +161,44 @@ class TokenCreditService:
             charged = True
             await CRepo.set_version(redis, user_seen_key, db_ver)
 
+        if charged:
+            rows = await TCRepo.get_all_users_tokens(db)
+            data = [
+                TokenCreditResponse.model_validate(dict(r)).model_dump(mode="json")
+                for r in rows
+            ]
+            await CRepo.set_list(redis, list_key, data)
+            await CRepo.set_version(redis, ver_key, db_ver)
+
+        else:
+            redis_ver = await CRepo.get_version(redis, ver_key)
+
+            if redis_ver == db_ver:
+                cached = await CRepo.get_list(redis, list_key)
+                if cached is not None:
+                    data = cached
+                else:
+                    rows = await TCRepo.get_all_users_tokens(db)
+                    data = [
+                        TokenCreditResponse.model_validate(dict(r)).model_dump(mode="json")
+                        for r in rows
+                    ]
+                    await CRepo.set_list(redis, list_key, data)
+            else:
+                rows = await TCRepo.get_all_users_tokens(db)
+                data = [
+                    TokenCreditResponse.model_validate(dict(r)).model_dump(mode="json")
+                    for r in rows
+                ]
+                await CRepo.set_list(redis, list_key, data)
+                await CRepo.set_version(redis, ver_key, db_ver)
+
         log_action(
             event="user_viewed_all_users_token_history",
             user_id=user.id,
             username=user.username,
             action=action,
-            charged=action.cost,
+            charged=(action.cost if charged else 0),
             balance_after=balance,
         )
 

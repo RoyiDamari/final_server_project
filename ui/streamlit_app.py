@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 from ui.utils.session_guard import ensure_token_fresh
 from ui.utils.api_helpers import handle_api_response
-from ui.utils.display_helpers import show_sidebar_balance
+from ui.utils.display_helpers import init_sidebar_balance_slot, show_sidebar_balance
 from ui.api.auth import login_user, logout_user
 from ui.api.user import register_user
 from ui.utils.validators import (
@@ -163,6 +163,9 @@ def render_sidebar() -> str:
     with st.sidebar:
         st.image("ui/assets/ai_icon.jpg")
         st.write("## ML Dashboard")
+
+        init_sidebar_balance_slot()
+        show_sidebar_balance()
 
         return option_menu(
             menu_title="Main Menu",
