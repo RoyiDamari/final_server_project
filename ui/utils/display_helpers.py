@@ -6,7 +6,7 @@ from dateutil import tz
 
 def init_sidebar_balance_slot():
     # create per-run slot; safe because we recreate each rerun
-    st.session_state["_balance_slot"] = st.empty()
+    st.session_state["_balance_slot"] = st.sidebar.empty()
 
 def show_sidebar_balance():
     slot = st.session_state.get("_balance_slot")
@@ -24,7 +24,7 @@ def handle_usage_balance(resp: dict):
         return
 
     st.session_state["token_balance"] = balance
-    show_sidebar_balance()  # updates the existing slot immediately
+    show_sidebar_balance()
 
     if charged:
         st.success(f"💳 Tokens charged. New balance: {balance}")

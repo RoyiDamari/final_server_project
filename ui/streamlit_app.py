@@ -209,8 +209,6 @@ def main():
 
     ensure_token_fresh()
 
-    show_sidebar_balance()
-
     choice = render_sidebar()
 
     # ---- fragment transition detection ----

@@ -9,7 +9,8 @@ from app.exceptions.user import (UserAlreadyDeletedException, UserHasRemainingTo
                                  DeleteUserConfirmationException)
 from app.utils.password_hashing import get_password_hash, verify_password
 from app.utils.cache_invalidation import (invalidate_global_predictions_cache, invalidate_global_models_cache,
-                                          invalidate_global_token_credits_cache)
+                                          invalidate_global_token_credits_cache, invalidate_global_user_usage_cache,
+                                          cleanup_user_seen_keys)
 from app.core.logs import log_action
 
 
@@ -114,6 +115,8 @@ class UserService:
         await invalidate_global_models_cache(redis, ts)
         await invalidate_global_predictions_cache(redis, ts)
         await invalidate_global_token_credits_cache(redis, ts)
+        await invalidate_global_user_usage_cache(redis, ts)
+        await cleanup_user_seen_keys(redis, user.id)
 
         log_action(
             "user_has_been_deleted_his_account",
