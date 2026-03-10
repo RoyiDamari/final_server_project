@@ -14,17 +14,29 @@ async def check_rate_limit(
         window: int,
 ):
     """
-    Enforces rate limiting using Redis.
+    Enforce a sliding-window rate limit using Redis list timestamps.
+
+    Strategy:
+      - Keep up to max_requests timestamps in a Redis list.
+      - If list has capacity -> push now, trim, set expire(window).
+      - If full and oldest within window -> raise RateLimitException(retry_after).
+      - If window expired -> reset by pushing now.
 
     Args:
-        key (str): Fully-qualified rate-limit key (includes scope + identifier)
-        redis (Redis): Redis client
-        max_requests (int): Allowed requests per window
-        window (int): Window size in seconds
+        key: Redis key for this limiter bucket.
+        redis: Redis client.
+        max_requests: Maximum allowed requests within the window.
+        window: Window size in seconds.
+
+    Returns:
+        None
 
     Raises:
-        RateLimitException: if limit exceeded
+        RateLimitException: If limit is exceeded and caller should retry later.
+        redis.exceptions.RedisError: If Redis operations fail.
+        ValueError: If stored timestamps are not parseable as ints.
     """
+
     now = int(time.time())
 
     timestamps = await redis.lrange(key, 0, -1)
@@ -60,13 +72,22 @@ def _build_identifier(
         kwargs: dict,
 ) -> str:
     """
-    Build a stable identifier for rate limiting.
+    Build a stable identifier string used for rate limiting buckets.
 
     Priority:
-    1. Authenticated user.id
-    2. Username / email from request payload (login/register)
-    3. Client IP
+      1) Authenticated user.id (if present in kwargs["user"])
+      2) Client IP (if request.client is available)
+      3) Fallback "unknown"
+
+    Args:
+        scope: Logical scope name (e.g., "login", "train").
+        request: Optional FastAPI Request.
+        kwargs: Endpoint kwargs (used to detect authenticated user).
+
+    Returns:
+        str: Fully-qualified identifier string (not yet passed through CacheKeys).
     """
+
     user = kwargs.get("user")
     if user:
         return f"ratelimit:{scope}:user:{user.id}"
@@ -79,10 +100,19 @@ def _build_identifier(
 
 def rate_limited(scope: str, max_requests: int, window: int):
     """
-    Rate limit decorator.
+    Decorator that rate-limits an async FastAPI endpoint using Redis.
 
-    Example:
-        @rate_limited("login", max_requests=10, window=600)
+    Args:
+        scope: Scope name for the limiter (used in the Redis key namespace).
+        max_requests: Allowed requests per window.
+        window: Window length in seconds.
+
+    Returns:
+        Callable: Decorator that wraps the endpoint.
+
+    Raises:
+        RateLimitException: Propagated from check_rate_limit when limit is exceeded.
+        redis.exceptions.RedisError: If Redis is unavailable and get_redis() / Redis ops fail.
     """
 
     def decorator(func):

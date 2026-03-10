@@ -2,7 +2,7 @@ import streamlit as st
 from ui.utils.session_guard import ensure_authenticated
 
 
-def main():
+def main() -> None:
     ensure_authenticated()
     st.title("🏠 Welcome to the AI Prediction Platform")
     st.markdown("""

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # --- Redis ---
     REDIS_URL: str
     REDIS_TTL: int = 86400
+    ASSIST_LOCK_TTL_S: int = 60
 
     MAX_TOKENS_PER_PURCHASE: int = 100
     MAX_TOKENS: int = 200
@@ -31,6 +32,12 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_TIMEOUT: ClassVar[int] = 20
     OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
+
+    # --- Model Saved Folder ---
+    MODEL_BASE_DIR: str  = "saved_models"
+
+    # --- CSV Files Saved Folder ---
+    UPLOAD_TMP_DIR: str = "uploads/_tmp"
 
     # Global rate limit for all actions
     RATE_LIMITS: ClassVar[dict[str, dict[str, int]]] = {

@@ -14,12 +14,14 @@ class Prediction(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
-    model_id: Mapped[int] = mapped_column(Integer, ForeignKey("trained_models.id", ondelete="RESTRICT"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False,
+                                         index=True)
+    model_id: Mapped[int] = mapped_column(Integer, ForeignKey("trained_models.id", ondelete="RESTRICT"), nullable=False,
+                                          index=True)
     model_type: Mapped[str] = mapped_column(String(255), nullable=False)
-    input_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    feature_values: Mapped[dict] = mapped_column(JSON, nullable=False)
     prediction_result: Mapped[str] = mapped_column(String(255), nullable=False)
-    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[RowStatus] = mapped_column(
         SAEnum(RowStatus, name="row_status", native_enum=True),
         nullable=False,

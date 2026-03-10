@@ -4,9 +4,8 @@ from .base import BaseAppException
 
 class TokenGenerationException(BaseAppException):
     """
-    Raised when a JWT token is invalid, malformed, or missing required claims.
-
-    Default HTTP status: 401 Unauthorized
+    Raised when a refresh/session token cannot be generated uniquely after retries.
+    Returns HTTP 401 (by your design) and does not log.
     """
 
     def __init__(self, detail: str = "Unable to generate unique session token pair."):
@@ -19,9 +18,8 @@ class TokenGenerationException(BaseAppException):
 
 class InvalidTokenException(BaseAppException):
     """
-    Raised when a JWT token is invalid, malformed, or missing required claims.
-
-    Default HTTP status: 401 Unauthorized
+    Raised when an access/refresh token is invalid or cannot be validated.
+    Returns HTTP 401 and does not log (common auth failure).
     """
 
     def __init__(self, detail: str = "Your session could not be validated. Please re-authenticate."):
@@ -34,9 +32,8 @@ class InvalidTokenException(BaseAppException):
 
 class ExpiredTokenException(BaseAppException):
     """
-    Raised when a JWT token has expired.
-
-    Default HTTP status: 401 Unauthorized
+    Raised when an access/refresh token is expired (or absolute expiry reached).
+    Returns HTTP 401 and does not log.
     """
 
     def __init__(self, detail: str = "Session has expired. Please log in again"):
@@ -49,9 +46,8 @@ class ExpiredTokenException(BaseAppException):
 
 class UserCredentialsException(BaseAppException):
     """
-    Raised when user authentication fails due to invalid credentials.
-
-    Default HTTP status: 401 Unauthorized
+    Raised when login fails due to incorrect username/password.
+    Returns HTTP 401 and does not log.
     """
 
     def __init__(self, detail: str = "Incorrect username or password"):
@@ -63,6 +59,11 @@ class UserCredentialsException(BaseAppException):
 
 
 class ReusedTokenException(BaseAppException):
+    """
+    Raised when refresh-token reuse is detected and the session is revoked.
+    Returns HTTP 401 and logs internal details (security signal).
+    """
+
     def __init__(self, log_detail: str | None = None):
         super().__init__(
             detail="⚠️ Your session was revoked due to suspicious activity. "

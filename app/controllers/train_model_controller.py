@@ -1,7 +1,7 @@
 import os
 from redis.asyncio.client import Redis
 from contextlib import suppress
-from fastapi import APIRouter, UploadFile, File, Form, Depends, status
+from fastapi import APIRouter, UploadFile, File, Form, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.auth_service import AuthService
 from app.services.train_model_service import TrainModelService
@@ -16,7 +16,6 @@ from app.utils.redis import get_redis
 from app.config import config
 from app.database import get_db
 
-
 router = APIRouter(
     prefix="/train_model",
     tags=["train_model"],
@@ -27,6 +26,7 @@ router = APIRouter(
 @router.post("/train", status_code=status.HTTP_200_OK, response_model=ActionResponse[TrainedModelResponse])
 @rate_limited("train", **config.RATE_LIMITS["train"])
 async def train_model(
+        request: Request,
         model_type: str = Form(...),
         features: str = Form(...),
         label: str = Form(...),
@@ -40,6 +40,7 @@ async def train_model(
     Train a model from an uploaded CSV and provided configuration.
 
     Args:
+        request: FastAPI request object (used to detect client disconnects during long work).
         model_type: One of the supported model strategies (e.g., "linear", "logistic", "random_forest").
         features: JSON-encoded list of feature column names.
         label: Name of the label/target column in the CSV.
@@ -71,7 +72,8 @@ async def train_model(
             features=features_list,
             label=label,
             model_params=model_params_dict,
-            action=ActionType.TRAINING
+            action=ActionType.TRAINING,
+            request=request,
         )
 
         return result
@@ -104,7 +106,6 @@ async def get_user_models(
     return await TrainModelService.get_user_models(db, user)
 
 
-
 @router.get("/all_users_models", status_code=status.HTTP_200_OK, response_model=MetadataResponse[TrainedModelResponse])
 @rate_limited("all_users_models", **config.RATE_LIMITS["all_users_models"])
 async def get_all_users_models(
@@ -112,21 +113,44 @@ async def get_all_users_models(
         redis: Redis = Depends(get_redis),
         user: User = Depends(AuthService.validate_user),
 ):
-    return await TrainModelService.get_all_users_models(db, redis, user, ActionType.METADATA)
+    """
+    Fetch trained-model metadata for all users (admin/privileged view).
 
+    This endpoint is token-charged under ActionType.METADATA and rate-limited.
+    The service may use Redis caching.
+
+    Args:
+        db: Async SQLAlchemy session dependency.
+        redis: Redis client dependency.
+        user: Authenticated user resolved from access token.
+                Authorization/role checks are enforced inside the service layer.
+
+    Returns:
+        MetadataResponse[TrainedModelResponse] containing the list of models and billing metadata.
+    """
+
+    return await TrainModelService.get_all_users_models(db, redis, user, ActionType.METADATA)
 
 
 @router.get("/user_models_internal", status_code=status.HTTP_200_OK, response_model=list[TrainedModelResponse])
 async def get_user_models_internal(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(AuthService.validate_user),
+        db: AsyncSession = Depends(get_db),
+        user: User = Depends(AuthService.validate_user),
 ):
     """
-    INTERNAL endpoint.
+    Fetch the current user's trained models for internal UI composition.
 
-    Used by frontend UX flows (prediction form, feature selection, etc.)
-    - No rate limit
-    - No token deduction
-    - Auth required
+    Notes:
+        - Not token-charged.
+        - Not rate-limited.
+        - Intended for building UI state (e.g., prediction form model selection).
+
+    Args:
+        db: Async SQLAlchemy session dependency.
+        user: Authenticated user resolved from access token.
+
+    Returns:
+        List of TrainedModelResponse objects for the authenticated user.
     """
+
     return await TrainModelService.get_user_models_internal(db, user)

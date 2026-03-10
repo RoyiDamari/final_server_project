@@ -13,7 +13,6 @@ from app.utils.redis import get_redis
 from app.utils.rate_limit import rate_limited
 from app.config import config
 
-
 router = APIRouter(
     prefix="/usage",
     tags=["usage"],
@@ -30,6 +29,20 @@ async def get_model_type_distribution(
         redis: Redis = Depends(get_redis),
         user: User = Depends(AuthService.validate_user)
 ):
+    """
+    Return distribution of trained models grouped by model_type.
+
+    Token-charged under ActionType.METADATA and rate-limited. Results may be cached in Redis.
+
+    Args:
+        db: Async SQLAlchemy session dependency.
+        redis: Redis client dependency.
+        user: Authenticated user resolved from access token.
+
+    Returns:
+        MetadataResponse[ModelTypeDistributionResponse] containing grouped counts and billing metadata.
+    """
+
     return await UUServ.get_model_type_distribution(db, redis, user, ActionType.METADATA)
 
 
@@ -42,6 +55,20 @@ async def get_regression_vs_classification_split(
         redis: Redis = Depends(get_redis),
         user: User = Depends(AuthService.validate_user)
 ):
+    """
+    Return regression vs classification split across all trained models.
+
+    Token-charged under ActionType.METADATA and rate-limited. Results may be cached in Redis.
+
+    Args:
+        db: Async SQLAlchemy session dependency.
+        redis: Redis client dependency.
+        user: Authenticated user resolved from access token.
+
+    Returns:
+        MetadataResponse[TypeSplitResponse] containing split counts and billing metadata.
+    """
+
     return await UUServ.get_regression_vs_classification_split(db, redis, user, ActionType.METADATA)
 
 
@@ -54,6 +81,20 @@ async def get_label_distribution(
         redis: Redis = Depends(get_redis),
         user: User = Depends(AuthService.validate_user)
 ):
+    """
+    Return grouped label distributions across all models, split by problem type.
+
+    Token-charged under ActionType.METADATA and rate-limited. Results may be cached in Redis.
+
+    Args:
+        db: Async SQLAlchemy session dependency.
+        redis: Redis client dependency.
+        user: Authenticated user resolved from access token.
+
+    Returns:
+        ActionResponse[GroupedLabelDistributionResponse] containing grouped label counts and billing metadata.
+    """
+
     return await UUServ.get_label_distribution(db, redis, user, ActionType.METADATA)
 
 
@@ -62,8 +103,22 @@ async def get_label_distribution(
              response_model=ActionResponse[GroupedMetricDistributionResponse])
 @rate_limited("metric_distribution", **config.RATE_LIMITS["metric_distribution"])
 async def get_metric_distribution(
-    user: User = Depends(AuthService.validate_user),
-    db: AsyncSession = Depends(get_db),
-    redis: Redis = Depends(get_redis),
+        user: User = Depends(AuthService.validate_user),
+        db: AsyncSession = Depends(get_db),
+        redis: Redis = Depends(get_redis),
 ):
+    """
+    Return grouped metric distributions (accuracy / R² buckets) across all models.
+
+    Token-charged under ActionType.METADATA and rate-limited. Results may be cached in Redis.
+
+    Args:
+        user: Authenticated user resolved from access token.
+        db: Async SQLAlchemy session dependency.
+        redis: Redis client dependency.
+
+    Returns:
+        ActionResponse[GroupedMetricDistributionResponse] containing bucketed metric counts and billing metadata.
+    """
+
     return await UUServ.get_metric_distribution(db, redis, user, ActionType.METADATA)

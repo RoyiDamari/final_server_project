@@ -1,9 +1,8 @@
 from app.core.logging_config import setup_logging
 setup_logging()
-import asyncio
 from asyncio import CancelledError
 from fastapi import FastAPI
-from app.database import init_db, close_db, SessionLocal, engine
+from app.database import init_db, close_db, SessionLocal
 from app.services.assist_service import AssistService
 from app.controllers.assist_controller import router as assist_router
 from app.controllers.auth_controller import router as auth_router
@@ -15,10 +14,8 @@ from app.controllers.user_controller import router as user_router
 from app.controllers.user_usage_controller import router as user_usage_router
 from app.utils.redis import init_redis, close_redis
 from app.exceptions.handlers import app_exception_handlers
-from app.maintenance.health import db_guard
 from app.maintenance.reconciler import reconcile_files_on_startup
 import logging
-
 
 app = FastAPI(title="FastAPI ML Project")
 
@@ -32,7 +29,6 @@ app.include_router(train_model_router)
 app.include_router(user_router)
 app.include_router(user_usage_router)
 
-
 app_exception_handlers(app)
 
 
@@ -45,8 +41,6 @@ async def on_startup():
 
     async with SessionLocal() as db:
         await reconcile_files_on_startup(db)
-
-    app.state.db_guard_task = asyncio.create_task(db_guard(engine))
 
     AssistService.init()
 

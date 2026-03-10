@@ -14,7 +14,21 @@ from ui.utils.display_helpers import handle_usage_balance
 from ui.config import METADATA_COST
 
 
-def render_model_type_distribution(token: str):
+def render_model_type_distribution(token: str) -> None:
+    """
+    Render a bar chart of model counts grouped by model type.
+
+    Fetches data from the backend only when the user clicks the guarded button.
+    The endpoint is token-charged (METADATA_COST), so we use render_token_guarded_button()
+    and then update the sidebar/message via handle_usage_balance().
+
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.subheader("Distribution by Model Type")
 
     clicked = render_token_guarded_button(
@@ -42,7 +56,20 @@ def render_model_type_distribution(token: str):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_regression_vs_classification_split(token: str):
+def render_regression_vs_classification_split(token: str) -> None:
+    """
+    Render a pie chart showing regression vs classification model counts.
+
+    Fetches data only when the user clicks the guarded button and updates balance
+    via handle_usage_balance().
+
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.subheader("Regression vs. Classification Split")
 
     clicked = render_token_guarded_button(
@@ -70,8 +97,20 @@ def render_regression_vs_classification_split(token: str):
     st.plotly_chart(fig, use_container_width=True)
 
 
+def render_label_distribution(token: str) -> None:
+    """
+    Render global label distributions for classification and regression models.
 
-def render_label_distribution(token: str):
+    The backend returns a dict with keys like "classification" and "regression",
+    each containing (label, count) rows. The function plots separate bar charts.
+
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.subheader("🔎 Global Label Distribution")
 
     clicked = render_token_guarded_button(
@@ -130,9 +169,20 @@ def render_label_distribution(token: str):
             st.info("No regression models found.")
 
 
+def render_metric_distribution(token: str) -> None:
+    """
+    Render global performance distributions for classification (accuracy) and regression (R²).
 
+    The backend returns bucketed distributions (bucket, count) for each problem type.
+    This function plots bar charts for accuracy and R² in two columns.
 
-def render_metric_distribution(token: str):
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.subheader("📊 Global Model Performance Distribution")
 
     clicked = render_token_guarded_button(
@@ -199,9 +249,20 @@ def render_metric_distribution(token: str):
             st.info("No regression models found.")
 
 
+def main() -> None:
+    """
+    Fragment entry point for the All-Users activity dashboard.
 
+    Ensures authentication, then renders four analytics sections:
+        - model type distribution
+        - regression vs classification split
+        - label distribution
+        - metric distribution
 
-def main():
+    Returns:
+        None.
+    """
+
     ensure_authenticated()
 
     token = st.session_state["jwt_token"]
@@ -218,5 +279,3 @@ def main():
     st.divider()
 
     render_metric_distribution(token)
-
-

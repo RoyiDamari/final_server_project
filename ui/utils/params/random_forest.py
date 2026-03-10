@@ -1,9 +1,31 @@
 import streamlit as st
-from typing import Any
+from typing import Callable, Any
 from ui.utils.params.presets import PARAM_HELP
 
 
-def render_rf_params_ui(model_type: str, base_params: dict, token: str, explain_fn, ask_btn):
+def render_rf_params_ui(
+        model_type: str,
+        base_params: dict[str, Any],
+        token: str,
+        explain_fn: Callable[..., dict[str, Any]],
+        ask_btn: Callable[..., None],
+) -> dict[str, Any]:
+    """
+    Render UI controls for Random Forest parameters and return an updated params dict.
+
+    Calls ask_btn(...) next to each parameter for contextual explanations.
+
+    Args:
+        model_type: Current UI model type selector value (used for widget keys).
+        base_params: Preset parameters dict.
+        token: User access token used by ask_btn.
+        explain_fn: Callable used by ask_btn to call the backend explanation endpoint.
+        ask_btn: Function that renders the "Ask ChatGPT" UI for a parameter.
+
+    Returns:
+        A dict of model parameters after applying UI selections.
+    """
+
     p: dict[str, Any] = dict(base_params or {})
 
     n_estimators = st.number_input(

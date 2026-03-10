@@ -4,7 +4,25 @@ from ui.utils.session_guard import ensure_authenticated
 from ui.utils.api_helpers import handle_api_error
 
 
-def delete_account_ui(token: str):
+def delete_account_ui(token: str) -> None:
+    """
+    Render the Delete Account UI and delete the authenticated user's account on submit.
+
+    Behavior:
+        - Collects username and password confirmation.
+        - If the user has a positive token balance, requires an extra confirmation checkbox
+          acknowledging token forfeiture.
+        - Calls the backend delete_user endpoint.
+        - On success, clears session state and triggers a rerun to return user to login page
+          with a one-time logout message.
+
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.header("🗑️ Delete My Account")
 
     token_balance = st.session_state.get("token_balance", 0)
@@ -49,8 +67,21 @@ def delete_account_ui(token: str):
         st.rerun()
 
 
-def main():
-    """Thin wrapper like all other fragments."""
+def main() -> None:
+    """
+    Fragment entry point for the Delete Account page.
+
+    Behavior:
+        - Ensures the user is authenticated.
+        - Retrieves the current access token from session_state.
+        - Renders the delete account form (username/password confirmation).
+        - Requires explicit confirmation if token balance > 0.
+        - On success, clears session state and returns the user to login screen.
+
+    Returns:
+        None.
+    """
+
     ensure_authenticated()
     token = st.session_state["jwt_token"]
     delete_account_ui(token)

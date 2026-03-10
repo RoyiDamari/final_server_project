@@ -13,11 +13,9 @@ class PredictionResponse(BaseModel):
     user_id: int
     model_id: int
     model_type: str
-    input_data: Dict[str, Any]
+    feature_values: Dict[str, Any]
     prediction_result: str
     created_at: datetime
     status: str
 
     model_config = ConfigDict(from_attributes=True)
-
-

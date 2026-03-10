@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 from streamlit_option_menu import option_menu
 from ui.utils.session_guard import ensure_token_fresh
@@ -16,7 +17,7 @@ import fragments.user_usage_dashboard as user_usage_dashboard
 import fragments.user_tokens_dashboard as user_tokens_dashboard
 import fragments.buy_tokens as buy_tokens
 import fragments.delete_account as delete_account
-
+from ui.api.health import get_ready
 
 st.set_page_config(page_title="ML App", layout="wide")
 
@@ -24,12 +25,39 @@ st.set_page_config(page_title="ML App", layout="wide")
 # --------------------------
 # Login/Register Components
 # --------------------------
-def _show_warnings(warnings: list[str]):
+def _show_warnings(warnings: list[str]) -> None:
+    """
+    Render a list of warning messages as Streamlit warning banners.
+
+    Args:
+        warnings: List of warning strings to display.
+
+    Returns:
+        None.
+    """
+
     for msg in warnings:
         st.warning(msg)
 
 
-def handle_login(username: str, password: str):
+def handle_login(username: str, password: str) -> None:
+    """
+    Validate login inputs, call the backend login endpoint, and initialize session state.
+
+    Behavior:
+        - Validates username/password and shows warnings if invalid.
+        - Calls login_user() and uses handle_api_response() for non-fatal errors.
+        - On success, stores access/refresh tokens, expiry, and token balance in session_state.
+        - Redirects navigation to Home via menu_choice and triggers st.rerun().
+
+    Args:
+        username: Raw username input from the UI.
+        password: Raw password input from the UI.
+
+    Returns:
+        None.
+    """
+
     warnings = []
     if not username or not password:
         warnings.append("Please fill in both username and password.")
@@ -71,7 +99,26 @@ def handle_login(username: str, password: str):
     st.rerun()
 
 
-def handle_register(first, last, username, email, password):
+def handle_register(first: str, last: str, username: str, email: str, password: str) -> None:
+    """
+    Validate registration inputs, call the backend register endpoint, and store a success message.
+
+    Behavior:
+        - Validates first/last/username/email/password and shows warnings if invalid.
+        - Calls register_user() and uses handle_api_response() for non-fatal errors.
+        - On success, stores a one-time success message in session_state and triggers st.rerun().
+
+    Args:
+        first: First name input.
+        last: Last name input.
+        username: Username input.
+        email: Email input.
+        password: Password input.
+
+    Returns:
+        None.
+    """
+
     st.session_state["register_open"] = True
 
     warnings = []
@@ -110,16 +157,20 @@ def handle_register(first, last, username, email, password):
     st.rerun()
 
 
-def render_login_register():
+def render_login_register() -> None:
     """
-        Render the login / registration page.
+    Render the login/registration screen.
 
-        - Displays session-expiry or logout messages (if any)
-        - Handles login and registration via forms
-        - Designed to work with Streamlit rerun-based navigation
-        """
+    Behavior:
+        - Displays a one-time logout/session-expired message if present.
+        - Renders Login and Register forms.
+        - Delegates submit handling to handle_login() / handle_register().
+        - Uses Streamlit rerun-based navigation.
 
-    # --- Show logout / session-expired message (one-time) ---
+    Returns:
+        None.
+    """
+
     logout_msg = st.session_state.pop("logout_message", None)
     if logout_msg:
         st.warning(logout_msg)
@@ -160,6 +211,18 @@ def render_login_register():
 # Sidebar Navigation
 # --------------------------
 def render_sidebar() -> str:
+    """
+    Render the sidebar navigation and token balance widget.
+
+    Behavior:
+        - Shows app icon and title.
+        - Initializes and renders the token balance metric.
+        - Renders the option_menu and returns the selected choice.
+
+    Returns:
+        The selected menu option string.
+    """
+
     with st.sidebar:
         st.image("ui/assets/ai_icon.jpg")
         st.write("## ML Dashboard")
@@ -197,7 +260,41 @@ def render_sidebar() -> str:
 # -----------------------------------
 # Main Entry Logic
 # -----------------------------------
-def main():
+def main() -> None:
+    """
+    Main Streamlit application entry point.
+
+    Behavior:
+        - Checks backend readiness (health endpoint) with exponential-ish backoff.
+        - If not authenticated, renders login/register and exits.
+        - Ensures token freshness (refresh if near expiry).
+        - Renders sidebar, routes to selected fragment.
+        - On fragment change, runs cleanup hooks (e.g., train_model.invalidate_model_context()).
+        - On logout, calls backend logout and clears session.
+
+    Returns:
+        None.
+    """
+
+    st.session_state.setdefault("_ready_fail_count", 0)
+
+    resp = get_ready()
+    ready = bool(resp and resp.get("status_code") == 200)
+
+    if not ready:
+        st.session_state["_ready_fail_count"] += 1
+
+        backoff_s = min(5, [1, 2, 3, 5][min(3, st.session_state["_ready_fail_count"] - 1)])
+
+        st.warning(
+            "Backend is starting or temporarily unavailable.\n\n"
+            f"Retrying automatically in **{backoff_s}** seconds…"
+        )
+        time.sleep(backoff_s)
+        st.rerun()
+
+    st.session_state["_ready_fail_count"] = 0
+
     st.session_state.setdefault("active_fragment", None)
     token = st.session_state.get("jwt_token")
 
@@ -212,10 +309,14 @@ def main():
     choice = render_sidebar()
 
     # ---- fragment transition detection ----
-
     if st.session_state["active_fragment"] != choice:
         if st.session_state["active_fragment"] == "📈 Train Model":
             train_model.invalidate_model_context()
+            train_model.clear_models_viewer_cache()
+        if st.session_state["active_fragment"] == "🔮 Make Prediction":
+            make_prediction.clear_predictions_viewer_cache()
+        if st.session_state["active_fragment"] == "📊 User Usage Dashboard":
+            user_tokens_dashboard.clear_tokens_view_cache()
         st.session_state["active_fragment"] = choice
 
     match choice:

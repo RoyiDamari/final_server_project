@@ -13,17 +13,19 @@ SessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
+
 async def init_db():
     """Called at startup to create tables"""
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS citext"))
         await conn.run_sync(Base.metadata.create_all)
 
+
 async def get_db():
     """Dependency for FastAPI routes"""
     async with SessionLocal() as session:
-        async with session.begin():
-            yield session
+        yield session
+
 
 async def close_db():
     """Dispose the engine and release all connections."""

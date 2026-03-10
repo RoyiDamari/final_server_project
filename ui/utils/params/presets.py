@@ -18,7 +18,6 @@ MODEL_PRESETS = {
     },
 }
 
-
 PARAM_HELP = {
     "linear": "best for predicting a number; fast, interpretable baseline;\n"
               "works well when relationships are roughly linear.",
@@ -48,7 +47,6 @@ PARAM_HELP = {
     "random_state": "Seed for reproducibility.",
     "n_jobs": "Number of CPU cores used (-1 = all cores).",
 }
-
 
 _VALID_SOLVERS = {
     "l2": ["lbfgs", "newton-cg", "saga", "liblinear"],

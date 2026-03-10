@@ -3,6 +3,11 @@ from .base import BaseAppException
 
 
 class ArtifactWriteException(BaseAppException):
+    """
+    Raised when persisting (moving/writing) a model artifact to disk fails.
+    Returns HTTP 500 and logs internal details for debugging.
+    """
+
     def __init__(self, log_detail: str | None = None):
         super().__init__(
             detail="Failed to persist model artifact",
@@ -13,7 +18,10 @@ class ArtifactWriteException(BaseAppException):
 
 
 class ArtifactMissingException(BaseAppException):
-    """Raised when the model artifact path is missing or the file does not exist on disk."""
+    """
+    Raised when a model artifact is missing or inaccessible on disk.
+    Returns HTTP 500 and logs internal details for debugging.
+    """
 
     def __init__(self, log_detail: str | None = None):
         super().__init__(

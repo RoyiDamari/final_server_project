@@ -9,14 +9,36 @@ from ui.utils.api_helpers import handle_api_error
 
 
 def _format_cc_for_display(raw: str) -> str:
+    """
+    Format a credit card string for display as groups of 4 digits separated by '-'
+
+    Non-digit characters are removed before formatting.
+
+    Args:
+        raw: Raw credit card input (may include spaces/dashes/letters).
+
+    Returns:
+        A formatted string like "1234-5678-9012-3456" (or partial groups if shorter).
+    """
+
     digits = re.sub(r"\D", "", raw or "")
     return "-".join(digits[i:i + 4] for i in range(0, len(digits), 4))
 
 
-def _on_cc_change():
+def _on_cc_change() -> None:
+    """
+    Streamlit on_change handler for the credit card input.
+
+    Reads st.session_state.cc_input, formats it for display, and writes it back.
+
+    Returns:
+        None.
+    """
+
     raw = st.session_state.cc_input
     formatted = _format_cc_for_display(raw)
     st.session_state.cc_input = formatted
+
 
 def _ensure_purchase_key() -> str:
     """
@@ -28,7 +50,24 @@ def _ensure_purchase_key() -> str:
     return st.session_state.purchase_key
 
 
-def buy_tokens_ui(token: str):
+def buy_tokens_ui(token: str) -> None:
+    """
+    Render the Buy Tokens UI and perform the purchase when the user submits.
+
+    Behavior:
+        - Computes how many tokens the user is allowed to buy (cap-aware).
+        - Collects credit card input and validates it.
+        - Uses st.session_state["buy_in_flight"] to disable inputs during the request.
+        - Uses an idempotency key (purchase_key) so repeated submits do not double-charge.
+        - On success, stores a one-time success message and updates token_balance.
+
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.header("💳 Buy Tokens")
 
     st.session_state.setdefault("purchase_key", None)
@@ -115,14 +154,27 @@ def buy_tokens_ui(token: str):
             st.session_state["token_balance"] = balance
 
             st.session_state.purchase_key = None
-            st.rerun()
 
         finally:
             st.session_state.buy_in_flight = False
 
+        st.rerun()
+
 
 def main():
-    """Thin wrapper to match all other fragment patterns."""
+    """
+    Fragment entry point for the Buy Tokens page.
+
+    Behavior:
+        - Ensures the user is authenticated.
+        - Retrieves the current access token from session_state.
+        - Renders the buy tokens UI (amount, credit card input, submit purchase).
+        - Updates session token balance and shows success message after purchase.
+
+    Returns:
+        None.
+    """
+
     ensure_authenticated()
     token = st.session_state["jwt_token"]
     buy_tokens_ui(token)

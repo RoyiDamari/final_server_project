@@ -32,7 +32,9 @@ def render_prediction_form(token: str):
     st.header("🔮 Make a Prediction")
 
     resp = get_user_models_internal(token)
+
     handle_api_error(resp)
+
     my_models = resp["data"]
 
     if not my_models:
@@ -48,7 +50,7 @@ def render_prediction_form(token: str):
     chosen_model = next(m for m in my_models if m["id"] == chosen_model_id)
 
     st.write(f"**Model Type:** {chosen_model.get('model_type', '—')}")
-    st.write(f"**Label:** {chosen_model.get('label','—')}")
+    st.write(f"**Label:** {chosen_model.get('label', '—')}")
     st.caption(f"Trained at: {format_ts(chosen_model.get('created_at'))}")
 
     metrics = chosen_model.get("metrics", {}) or {}
@@ -116,6 +118,7 @@ def render_prediction_form(token: str):
             resp = predict(token, model_id=chosen_model_id, feature_values=feature_values)
 
         handle_api_error(resp)
+
         handle_usage_balance(resp)
 
         prediction = resp["data"]
@@ -135,79 +138,116 @@ def render_prediction_form(token: str):
                 f"Created at: {format_ts(prediction['created_at'])}")
 
             with st.expander("📥 Input Data"):
-                render_table(prediction["input_data"])
+                render_table(prediction["feature_values"])
 
         st.session_state.pop("show_predict_success", None)
 
 
-def render_prediction_viewer(token: str):
+def render_prediction_viewer(token: str) -> None:
+    """
+    Render prediction history with an optional max-rows display limit.
+
+    Behavior:
+        - Lets the user choose between "My Predictions" and "All Users' Predictions".
+        - Fetches predictions on button click and stores them in session state.
+        - Shows a slider to limit displayed rows.
+        - For all-users view, uses token-guarded button and shows token charge/balance updates.
+
+    Args:
+        token: User access token.
+
+    Returns:
+        None.
+    """
+
     st.markdown("---")
     st.header("📜 Predictions History Viewer")
 
-    # Ensure session state exists
-    st.session_state.setdefault("predictions_history", None)
+    st.session_state.setdefault("predictions_view_rows", None)
+    st.session_state.setdefault("predictions_view_want_all", False)
 
-    # Radio selection identical to model viewer
     view_choice = st.radio(
         "Choose which predictions to view:",
         ["My Predictions", "All Users' Predictions"],
-        key="prediction_viewer_choice"
+        key="prediction_viewer_choice",
+        on_change=clear_predictions_viewer_cache,
     )
-
     want_all = view_choice == "All Users' Predictions"
 
-    if want_all:
-        button_clicked = render_token_guarded_button(
-            "🔄 Fetch Predictions",
-            min_tokens=METADATA_COST
-        )
-    else:
-        button_clicked = st.button("🔄 Fetch Predictions")
+    button_clicked = (
+        render_token_guarded_button("🔄 Fetch Predictions", min_tokens=METADATA_COST)
+        if want_all
+        else st.button("🔄 Fetch Predictions")
+    )
 
     if button_clicked:
         with st.spinner("Loading predictions..."):
-            resp = (
-                get_user_predictions(token)
-                if view_choice == "My Predictions"
-                else get_all_users_predictions(token)
-            )
+            resp = get_all_users_predictions(token) if want_all else get_user_predictions(token)
 
         handle_api_error(resp)
 
-        if not want_all:
-            st.info(f"Remaining balance: {st.session_state.get('token_balance', 0)}")
-        else:
+        if want_all:
             handle_usage_balance(resp)
 
         predictions = resp.get("data", [])
-
-        if predictions is None:
-            st.info("Click the button above to load predictions.")
-            return
-
         if not predictions:
             st.info("No predictions have been made yet.")
+            st.session_state["predictions_view_rows"] = None
             return
 
-        rows = [
-            prediction_to_row(p, include_user=want_all)
-            for p in predictions
-        ]
+        st.session_state["predictions_view_rows"] = predictions
+        st.session_state["predictions_view_want_all"] = want_all
 
-        df = pd.DataFrame(rows)
+    predictions = st.session_state.get("predictions_view_rows")
+    if predictions is None:
+        st.info("Click the button above to load predictions.")
+        return
+    if not predictions:
+        st.info("No predictions have been made yet.")
+        return
 
-        df = df.astype(str)
+    include_user = bool(st.session_state.get("predictions_view_want_all", False))
+    rows = [prediction_to_row(p, include_user=include_user) for p in predictions]
+    df = pd.DataFrame(rows).astype(str)
 
-        if not want_all:
-            df = df.drop(columns=["User ID"])
+    if not include_user and "User ID" in df.columns:
+        df = df.drop(columns=["User ID"])
 
-        st.dataframe(
-            df,
-            hide_index=True,
-        )
+    count = len(df)
+    if count == 1:
+        st.dataframe(df, hide_index=True, use_container_width=True)
+        return
+
+    max_rows = st.slider(
+        "Max predictions to show",
+        min_value=1,
+        max_value=count,
+        value=min(20, count),
+        key="predictions_viewer_max_rows",
+    )
+    st.dataframe(df.iloc[:max_rows], hide_index=True, use_container_width=True)
 
 
-def main():
+def clear_predictions_viewer_cache() -> None:
+    st.session_state["predictions_view_rows"] = None
+    st.session_state["predictions_view_want_all"] = False
+    st.session_state.pop("predictions_viewer_max_rows", None)
+
+
+def main() -> None:
+    """
+    Fragment entry point for the Prediction page.
+
+    Behavior:
+        - Ensures the user is authenticated.
+        - Retrieves the current access token from session_state.
+        - Renders the prediction UI (select model, input features, submit prediction).
+        - Renders prediction history viewer section (user / all users depending on role).
+
+    Returns:
+        None.
+    """
+
     ensure_authenticated()
 
     token = st.session_state["jwt_token"]
@@ -215,6 +255,3 @@ def main():
     render_prediction_form(token)
     st.divider()
     render_prediction_viewer(token)
-
-
-

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 T = TypeVar("T")
 
+
 class MetadataResponse(BaseModel, Generic[T]):
     data: list[T]
     charged: bool

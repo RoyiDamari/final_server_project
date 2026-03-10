@@ -29,7 +29,8 @@ class TokenCredit(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False,
+                                         index=True)
     key: Mapped[str] = mapped_column(String(64), nullable=False)
     amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
     balance_after: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -6,10 +6,10 @@ from typing import Any
 from contextlib import suppress
 from app.models.orm_models.users import User
 from app.exceptions.artifact import ArtifactWriteException
+from app.config import config
 
 
-
-def save_upload_to_temp_csv(upload: UploadFile, suffix) -> str:
+def save_upload_to_temp_csv(upload: UploadFile, suffix: str) -> str:
     """
     Persist an UploadFile to a temporary file on disk and return its path.
 
@@ -20,10 +20,11 @@ def save_upload_to_temp_csv(upload: UploadFile, suffix) -> str:
     Returns:
         Absolute path to the temp file (caller is responsible for deletion).
     """
-    base = os.path.join("uploads", "_tmp")
-    os.makedirs(base, exist_ok=True)
 
-    fd, path = tempfile.mkstemp(dir=base, suffix=suffix)
+    base_abs = os.path.abspath(config.UPLOAD_TMP_DIR)
+    os.makedirs(base_abs, exist_ok=True)
+
+    fd, path = tempfile.mkstemp(dir=base_abs, suffix=suffix)
 
     try:
         with os.fdopen(fd, "wb") as f:
@@ -42,7 +43,7 @@ def save_upload_to_temp_csv(upload: UploadFile, suffix) -> str:
         raise
 
 
-def unique_model_path(user: User, fp, dirpath: str = "saved_models") -> str:
+def unique_model_path(user: User, fp: str) -> str:
     """
     Build a unique model artifact path by normalizing the name and appending a timestamp.
 
@@ -51,21 +52,50 @@ def unique_model_path(user: User, fp, dirpath: str = "saved_models") -> str:
     Args:
         user: Authenticated user.
         fp: fingerprint of the file
-        dirpath: Target directory for artifacts (created if missing).
 
     Returns:
         Full path to a unique .pkl file under dirpath.
     """
-    base = os.path.join(dirpath, str(user.id))
-    os.makedirs(base, exist_ok=True)  # <-- ensure folder exists
-    return os.path.join(base, f"{fp}.pkl")
+
+    base_dir = os.path.abspath(config.MODEL_BASE_DIR)
+    user_dir = os.path.join(base_dir, str(user.id))
+    os.makedirs(user_dir, exist_ok=True)
+    return os.path.join(user_dir, f"{fp}.pkl")
 
 
 def temp_path_for(final_path: str) -> str:
+    """
+    Compute the temporary artifact path for a final model artifact path.
+
+    Args:
+        final_path: Path where the final artifact should live (e.g. ".../fp.pkl").
+
+    Returns:
+        str: Temporary path used during training (e.g. ".../fp.pkl.tmp").
+    """
+
     return f"{final_path}.tmp"
 
 
 def move_temp_to_final(tmp_path: str, final_path: str) -> None:
+    """
+    Atomically replace the final artifact with the tmp artifact.
+
+    Uses os.replace(), which is atomic on POSIX when source/target are on the same filesystem.
+    This prevents partially-written final files because the rename/replace happens as a single
+    filesystem operation.
+
+    Args:
+        tmp_path: Path to the temporary artifact file.
+        final_path: Path to the final artifact file.
+
+    Returns:
+        None
+
+    Raises:
+        ArtifactWriteException: If the OS rename/replace fails (permissions, missing file, etc.).
+    """
+
     try:
         os.replace(tmp_path, final_path)
     except OSError as e:
@@ -75,6 +105,18 @@ def move_temp_to_final(tmp_path: str, final_path: str) -> None:
 
 
 def safe_unlink(path: str | None) -> None:
+    """
+    Best-effort file deletion.
+
+    Deletes the file at `path` if it exists. Never raises for common cleanup failures.
+
+    Args:
+        path: File path to delete. If None/empty, does nothing.
+
+    Returns:
+        None
+    """
+
     if not path:
         return
     with suppress(FileNotFoundError, IsADirectoryError, PermissionError):
@@ -93,8 +135,8 @@ def load_joblib_model(path: str) -> Any:
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        Exception: Any joblib/pickle errors during load.
     """
+
     if not os.path.exists(path):
         raise FileNotFoundError(f"Artifact not found at {path}")
     return joblib.load(path)

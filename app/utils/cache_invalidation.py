@@ -5,17 +5,22 @@ from app.core.logging_config import errors
 
 async def _invalidate_pairs(redis: Redis, ts: str, pairs: list[tuple[str, str]], label: str) -> None:
     """
-    Internal helper to invalidate a set of (list_key, version_key) cache pairs.
+    Invalidate Redis cache entries for a set of (payload_key, version_key) pairs.
 
     Invalidation strategy:
-      1) set version_key = ts   (forces version mismatch / refresh)
-      2) delete list_key        (removes cached payload)
+      1) Set version_key = ts (forces version mismatch in callers).
+      2) Delete payload_key   (removes cached payload).
 
-    Notes:
-      - Version bump is optional in your architecture because deleting list_key
-        alone is enough to force a rebuild (your service code handles cache-miss).
-      - Keeping the bump is fine as a "force refresh" signal.
+    Args:
+        redis: Redis client.
+        ts: Version string (typically ISO timestamp) used as the new cache version.
+        pairs: List of (payload_key, version_key) pairs to invalidate.
+        label: Label used for logging context on failure.
+
+    Returns:
+        None
     """
+
     try:
         for list_key, ver_key in pairs:
             await CRepo.set_version(redis, ver_key, ts)
@@ -26,12 +31,16 @@ async def _invalidate_pairs(redis: Redis, ts: str, pairs: list[tuple[str, str]],
 
 async def invalidate_global_models_cache(redis: Redis, ts: str) -> None:
     """
-    Invalidate the global 'all users models' cache.
+    Invalidate the global "all users trained models" cache in Redis.
 
-    Keys:
-      - models:all:list
-      - models:all:version
+    Args:
+        redis: Redis client.
+        ts: Version string (typically applied.created_at.isoformat()).
+
+    Returns:
+        None
     """
+
     await _invalidate_pairs(
         redis,
         ts,
@@ -42,12 +51,16 @@ async def invalidate_global_models_cache(redis: Redis, ts: str) -> None:
 
 async def invalidate_global_predictions_cache(redis: Redis, ts: str) -> None:
     """
-    Invalidate the global 'all users predictions' cache.
+    Invalidate the global "all users predictions" cache in Redis.
 
-    Keys:
-      - preds:all:list
-      - preds:all:version
+    Args:
+        redis: Redis client.
+        ts: Version string (typically applied.created_at.isoformat()).
+
+    Returns:
+        None
     """
+
     await _invalidate_pairs(
         redis,
         ts,
@@ -58,12 +71,16 @@ async def invalidate_global_predictions_cache(redis: Redis, ts: str) -> None:
 
 async def invalidate_global_token_credits_cache(redis: Redis, ts: str) -> None:
     """
-    Invalidate the global 'all users token credits history' cache.
+    Invalidate the global "all active users token credits history" cache in Redis.
 
-    Keys:
-      - token_credits:all:list
-      - token_credits:all:version
+    Args:
+        redis: Redis client.
+        ts: Version string (typically applied.created_at.isoformat()).
+
+    Returns:
+        None
     """
+
     await _invalidate_pairs(
         redis,
         ts,
@@ -74,32 +91,45 @@ async def invalidate_global_token_credits_cache(redis: Redis, ts: str) -> None:
 
 async def invalidate_global_user_usage_cache(redis: Redis, ts: str) -> None:
     """
-    Invalidate cached aggregations for the usage dashboard.
+    Invalidate cached global aggregations used by the usage dashboard.
 
-    These endpoints typically depend on global trained-model state, so when users
-    are deleted or new models appear, cached distributions can become stale.
+    These aggregations depend on global trained-model state, so when users are deleted
+    or new models are added, the cached distributions may become stale.
 
-    Keys:
-      - usage:model_type:list / usage:model_type:version
-      - usage:type_split:list / usage:type_split:version
-      - usage:label_distribution:list / usage:label_distribution:version
-      - usage:metric_distribution:list / usage:metric_distribution:version
+    Args:
+        redis: Redis client.
+        ts: Version string (typically a timestamp) used to bump cache version keys.
+
+    Returns:
+        None
     """
+
     await _invalidate_pairs(
         redis,
         ts,
         pairs=[
             ("usage:model_type:list", "usage:model_type:version"),
             ("usage:type_split:list", "usage:type_split:version"),
-            ("usage:label_distribution:list", "usage:label_distribution:version"),
-            ("usage:metric_distribution:list", "usage:metric_distribution:version"),
+            ("usage:label_distribution:json", "usage:label_distribution:version"),
+            ("usage:metric_distribution:json", "usage:metric_distribution:version"),
         ],
         label="user usage",
     )
 
 
 async def _delete_keys(redis: Redis, keys: list[str], label: str) -> None:
-    """Internal helper to delete a list of Redis keys safely."""
+    """
+    Delete a list of Redis keys best-effort.
+
+    Args:
+        redis: Redis client.
+        keys: List of Redis keys to delete.
+        label: Label used for logging context on failure.
+
+    Returns:
+        None
+    """
+
     try:
         for k in keys:
             await CRepo.delete(redis, k)
@@ -107,24 +137,3 @@ async def _delete_keys(redis: Redis, keys: list[str], label: str) -> None:
         errors.warning(f"{label} key cleanup failed: {e!r}")
 
 
-async def cleanup_user_seen_keys(redis: Redis, user_id: int) -> None:
-    """
-    Delete all per-user Version-D billing markers ('last_seen' keys) for dashboards.
-
-    Optional cleanup:
-      - Not required for correctness after a user is deactivated
-      - Prevents orphan per-user Redis keys from accumulating
-    """
-    keys = [
-        # usage dashboards
-        f"usage:model_type:last_seen:{user_id}",
-        f"usage:type_split:last_seen:{user_id}",
-        f"usage:label_distribution:last_seen:{user_id}",
-        f"usage:metric_distribution:last_seen:{user_id}",
-
-        # global dashboards
-        f"models:all:last_seen:{user_id}",
-        f"preds:all:last_seen:{user_id}",
-        f"tokens:all:last_seen:{user_id}",
-    ]
-    await _delete_keys(redis, keys, label="user seen")

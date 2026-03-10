@@ -11,9 +11,10 @@ def level_for_status(code: int):
     - else:  errors.info
     """
     if code >= 500:       return errors.error
-    if code in (404,405): return errors.info
-    if code in (429,409): return errors.warning
+    if code in (404, 405): return errors.info
+    if code in (429, 409): return errors.warning
     return errors.info
+
 
 def _format_kv(fields: dict[str, Any]) -> str:
     parts = []
@@ -24,6 +25,7 @@ def _format_kv(fields: dict[str, Any]) -> str:
             parts.append(f"{k}={v}")
     return " ".join(parts)
 
+
 def log_action(event: str, user_id: int, username: str, **fields: Any) -> None:
     """
     Activity log: bake fields into the message so they appear with the plain formatter.
@@ -32,5 +34,3 @@ def log_action(event: str, user_id: int, username: str, **fields: Any) -> None:
     base = {"user_id": user_id, "username": username}
     base.update(fields)
     activity.info("%s %s", event, _format_kv(base))
-
-

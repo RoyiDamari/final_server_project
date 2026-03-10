@@ -1,14 +1,13 @@
 import asyncio
 import os
-import signal
 from pathlib import Path
-from app.core.logging_config import errors
+from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 
 
-def ensure_disk_ok(base_dir: str , min_free_mb: int = 50) -> bool:
+def ensure_disk_ok(base_dir: str, min_free_mb: int = 50) -> bool:
     """
     Quick guard: verify we can write to base_dir and that free space >= min_free_mb.
     Return True if safe, False if we should refuse heavy work.
@@ -38,6 +37,7 @@ async def db_ping_once(engine: AsyncEngine, timeout_s: float = 2.0) -> bool:
     """
     Try a tiny round trip to the DB. Return True if OK, False otherwise.
     """
+
     async def _ping():
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -49,24 +49,15 @@ async def db_ping_once(engine: AsyncEngine, timeout_s: float = 2.0) -> bool:
         return False
 
 
-async def db_guard(engine, interval_s: float = 5.0, failure_threshold: int = 6) -> None:
-    """
-    If the DB is down for `failure_threshold` consecutive checks,
-    terminate the process so Docker restarts it.
-    """
-    failures = 0
-    while True:
-        try:
-            ok = await db_ping_once(engine, timeout_s=2.0)
-        except (SQLAlchemyError, asyncio.TimeoutError):
-            ok = False
+async def redis_ping_once(redis: Redis, timeout_s: float = 1.0) -> bool:
+    async def _ping():
+        await redis.ping()
 
-        if ok:
-            failures = 0
-        else:
-            failures += 1
-            if failures >= failure_threshold:
-                errors.error("DB guard: exiting after %d consecutive DB ping failures", failures)
-                os.kill(os.getpid(), signal.SIGTERM)
-                return
-        await asyncio.sleep(interval_s)
+    try:
+        await asyncio.wait_for(_ping(), timeout=timeout_s)
+        return True
+    except (asyncio.TimeoutError, Exception):
+        return False
+
+
+

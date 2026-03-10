@@ -12,7 +12,6 @@ from app.config import config
 from app.database import get_db
 from app.utils.redis import get_redis
 
-
 router = APIRouter(
     prefix="/prediction",
     tags=["prediction"],
@@ -85,7 +84,8 @@ async def get_user_predictions(
     return await PredictionService.get_user_predictions(db, user)
 
 
-@router.get("/all_users_predictions", status_code=status.HTTP_200_OK, response_model=MetadataResponse[PredictionResponse])
+@router.get("/all_users_predictions", status_code=status.HTTP_200_OK,
+            response_model=MetadataResponse[PredictionResponse])
 @rate_limited("all_users_predictions", **config.RATE_LIMITS["all_users_predictions"])
 async def get_all_users_predictions(
         db: AsyncSession = Depends(get_db),

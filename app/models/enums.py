@@ -2,10 +2,10 @@ from enum import Enum
 
 
 class ActionType(str, Enum):
-    TRAINING   = ("training", 10)
-    METADATA   = ("metadata", 1)
+    TRAINING = ("training", 10)
+    METADATA = ("metadata", 1)
     PREDICTION = ("prediction", 5)
-    ASSIST     = ("assist", 2)
+    ASSIST = ("assist", 2)
 
     def __new__(cls, value: str, cost: int):
         obj = str.__new__(cls, value)
@@ -21,3 +21,4 @@ class ActionType(str, Enum):
 class RowStatus(str, Enum):
     pending = "pending"
     applied = "applied"
+    failed = "failed"

@@ -16,14 +16,15 @@ class TrainedModel(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False,
+                                         index=True)
     model_type: Mapped[str] = mapped_column(String(64), nullable=False)
     features: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     model_params: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     label: Mapped[str] = mapped_column(String(255), nullable=False)
     metrics: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     feature_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
-    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     model_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     status: Mapped[RowStatus] = mapped_column(
         SAEnum(RowStatus, name="row_status", native_enum=True),

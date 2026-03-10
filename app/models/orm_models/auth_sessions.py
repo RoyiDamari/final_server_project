@@ -13,9 +13,9 @@ class AuthSession(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] =  mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
-    session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    refresh_token_hash: Mapped[str] = mapped_column(String(256), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    refresh_token_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     last_token_hash: Mapped[str] = mapped_column(String(256), nullable=True, index=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     ip_address: Mapped[str] = mapped_column(String(100), nullable=True)

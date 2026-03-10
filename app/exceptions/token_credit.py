@@ -5,9 +5,8 @@ from app.config import config
 
 class InvalidCreditCardException(BaseAppException):
     """
-    Raised when an invalid credit card number is provided (e.g., not 16 digits).
-
-    Default HTTP status: 400 Bad Request
+    Raised when a credit card value is not a valid 16-digit format.
+    Returns HTTP 400 and does not log.
     """
 
     def __init__(self):
@@ -20,9 +19,8 @@ class InvalidCreditCardException(BaseAppException):
 
 class InvalidPurchaseAmountException(BaseAppException):
     """
-    Raised when an invalid token amount is provided during purchase.
-
-    Default HTTP status: 400 Bad Request
+    Raised when the requested purchase amount violates configured limits.
+    Returns HTTP 400 and does not log.
     """
 
     def __init__(self):
@@ -35,7 +33,13 @@ class InvalidPurchaseAmountException(BaseAppException):
             suppress_log=True,
         )
 
+
 class TokenBalanceCapExceededException(BaseAppException):
+    """
+    Raised when the requested purchase amount violates configured limits.
+    Returns HTTP 400 and does not log.
+    """
+
     def __init__(self):
         super().__init__(
             detail=(
@@ -48,19 +52,25 @@ class TokenBalanceCapExceededException(BaseAppException):
 
 class PurchaseInProgressException(BaseAppException):
     """
-    Raised when a user tries to start a new purchase while another is still pending.
-    HTTP 409 Conflict.
+    Raised when a token purchase would exceed the user’s max token cap.
+    Returns HTTP 400 and does not log.
     """
 
     def __init__(self):
         super().__init__(
-            detail="Another purchase is already in progress. Retry with the same key or wait.",
+            detail="Another purchase is already in progress. Retry with the same key or wait. "
+                   "or click ‘Fetch Tokens’ to see when it finishes.",
             status_code=status.HTTP_409_CONFLICT,
             suppress_log=True,
         )
 
 
 class PurchaseFailedException(BaseAppException):
+    """
+    Raised when a user starts a purchase while another purchase is pending.
+    Returns HTTP 409 and does not log.
+    """
+
     def __init__(self, log_detail: str | None = None):
         super().__init__(
             detail="Purchase tokens failed due to internal error. Please try again.",

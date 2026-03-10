@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends, status, Request
 from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
 from app.services.user_service import UserService
 from app.services.auth_service import AuthService
-from app.exceptions.user import UsernameTakenException, EmailTakenException
 from app.models.pydantic_models.user import (RegisterUserRequest, RegisterUserResponse,
                                              DeleteUserRequest, DeleteUserResponse)
 from app.models.orm_models import User
@@ -12,7 +10,6 @@ from app.utils.rate_limit import rate_limited
 from app.utils.redis import get_redis
 from app.database import get_db
 from app.config import config
-
 
 router = APIRouter(
     prefix="/user",
@@ -39,20 +36,8 @@ async def register_user(
     Returns:
         RegisterUserResponse: Serialized view of the created user.
 
-    Raises:
-        UsernameTakenException, EmailTakenException (via handlers → 409).
     """
-    try:
-        return await UserService.register_user(db, reg_request)
-    except IntegrityError as e:
-        orig = getattr(e, "orig", None)
-        msg = str(orig).lower() if orig else ""
-
-        if "username" in msg:
-            raise UsernameTakenException()
-        if "email" in msg:
-            raise EmailTakenException()
-        raise
+    return await UserService.register_user(db, reg_request)
 
 
 @router.delete("/delete", status_code=status.HTTP_200_OK, response_model=DeleteUserResponse)
@@ -87,7 +72,3 @@ async def delete_user(
         del_request.password,
         del_request.confirm_delete_with_balance
     )
-
-
-
-

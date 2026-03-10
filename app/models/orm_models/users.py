@@ -20,10 +20,10 @@ class User(Base):
             postgresql_where=text("is_active = true")
         ),
         Index(
-        "ux_users_email_active",
-        "email",
-        unique=True,
-        postgresql_where=text("is_active = true"),
+            "ux_users_email_active",
+            "email",
+            unique=True,
+            postgresql_where=text("is_active = true"),
         ),
     )
 
@@ -49,4 +49,7 @@ class User(Base):
     )
     auth_sessions: Mapped[list["AuthSession"]] = relationship(
         back_populates="user",
+    )
+    seen_versions: Mapped[list["SeenVersion"]] = relationship(
+        back_populates="user"
     )

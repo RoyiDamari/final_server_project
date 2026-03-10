@@ -13,21 +13,20 @@ from app.config import config
 
 def app_exception_handlers(app: FastAPI):
     """
-    Registers custom exception handlers for the FastAPI app.
+    Register global FastAPI exception handlers.
 
-    Currently, handles:
-    - BaseAppException: Logs structured error with IP, method, and URL,
-        then returns a JSON response with the error details and appropriate status code.
-
-    Skips logging for RateLimitException, InvalidCreditCardException, DeleteException to avoid log spam.
-
-    Args:
-        app (FastAPI): The FastAPI app instance.
+    Handlers:
+        - BaseAppException: returns {"detail": exc.detail}, logs (unless suppress_log=True).
+        - RequestValidationError: returns 422 with validation errors list.
+        - ResponseValidationError: returns 500 and logs traceback (server bug).
+        - StarletteHTTPException: returns {"detail": exc.detail}, logs by status.
+        - SQLAlchemy DataError/OperationalError: returns 400/503 with safe messages.
+        - Exception: returns 500 and logs traceback (except CancelledError).
     """
+
     def exc_name(exc, fq: bool = False) -> str:
         c = exc.__class__
         return f"{c.__module__}.{c.__name__}" if fq else c.__name__
-
 
     @app.exception_handler(BaseAppException)
     async def base_app_exception_handler(request: Request, exc: BaseAppException):
@@ -55,14 +54,12 @@ def app_exception_handlers(app: FastAPI):
             headers=headers,
         )
 
-
     @app.exception_handler(RequestValidationError)
     async def request_validation_handler(_request: Request, exc: RequestValidationError):
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={"detail": jsonable_encoder(exc.errors())},
         )
-
 
     @app.exception_handler(ResponseValidationError)
     async def response_validation_handler(_: Request, exc: ResponseValidationError):
@@ -72,7 +69,6 @@ def app_exception_handlers(app: FastAPI):
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             content={"detail": "Internal response validation error"})
 
-
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         logger_fn = level_for_status(exc.status_code)
@@ -81,12 +77,10 @@ def app_exception_handlers(app: FastAPI):
         )
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
-
     @app.exception_handler(DataError)
     async def sa_data_error_handler(_: Request, exc: DataError):
         errors.warning(f"DataError: {getattr(exc, 'orig', exc)}")
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"detail": "Invalid data"})
-
 
     @app.exception_handler(OperationalError)
     async def sa_operational_error_handler(_: Request, exc: OperationalError):
@@ -94,7 +88,6 @@ def app_exception_handlers(app: FastAPI):
             f"OperationalError: {exc_name(exc, fq=True)} {getattr(exc, 'orig', exc)}"
         )
         return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": "Database unavailable"})
-
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(_: Request, exc: Exception):

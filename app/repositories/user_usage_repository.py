@@ -8,22 +8,46 @@ from app.models.orm_models.trained_models import TrainedModel
 class UserUsageRepository:
     @staticmethod
     async def get_model_type_distribution(db: AsyncSession) -> list[Dict]:
-        result = await db.execute(
+        """
+        Compute the distribution of trained model types across active users.
+
+        Args:
+            db: Async SQLAlchemy session.
+
+        Returns:
+            list[dict[str, Any]]:
+                List of {"model_type": <str>, "count": <int>} aggregated rows.
+        """
+
+        q = await db.execute(
             select(TrainedModel.model_type, func.count(TrainedModel.id)).where(
                 TrainedModel.user.has(is_active=True)
             ).group_by(TrainedModel.model_type)
         )
-        return [{"model_type": row[0], "count": row[1]} for row in result.all()]
+        return [{"model_type": row[0], "count": row[1]} for row in q.all()]
 
     @staticmethod
     async def get_regression_vs_classification_split(db: AsyncSession) -> list[Dict]:
-        result = await db.execute(
+        """
+        Compute a high-level split between regression and classification models.
+
+        Classification/regression mapping is derived from model_type names.
+
+        Args:
+            db: Async SQLAlchemy session.
+
+        Returns:
+            list[dict[str, Any]]:
+                List of {"problem_type": "Regression"|"Classification", "count": <int>}.
+        """
+
+        q = await db.execute(
             select(TrainedModel.model_type, func.count(TrainedModel.id)).where(
                 TrainedModel.user.has(is_active=True)
             ).group_by(TrainedModel.model_type)
         )
         split = {"Regression": 0, "Classification": 0}
-        for model_type, count in result.all():
+        for model_type, count in q.all():
             if model_type in ["linear", "ridge", "lasso", "random_forest", "svr"]:
                 split["Regression"] += count
             else:
@@ -32,13 +56,26 @@ class UserUsageRepository:
 
     @staticmethod
     async def get_label_distribution(db: AsyncSession) -> dict:
+        """
+        Compute a high-level split between regression and classification models.
+
+        Classification/regression mapping is derived from model_type names.
+
+        Args:
+            db: Async SQLAlchemy session.
+
+        Returns:
+            list[dict[str, Any]]:
+                List of {"problem_type": "Regression"|"Classification", "count": <int>}.
+        """
+
         metric_type = case(
             (TrainedModel.metrics.has_key("accuracy"), literal_column("'classification'")),
             (TrainedModel.metrics.has_key("r2"), literal_column("'regression'")),
             else_=None,
         ).label("metric_type")
 
-        stmt = (
+        q = (
             select(
                 TrainedModel.label,
                 metric_type,
@@ -51,7 +88,7 @@ class UserUsageRepository:
             .group_by(TrainedModel.label, metric_type)
         )
 
-        rows = (await db.execute(stmt)).all()
+        rows = (await db.execute(q)).all()
 
         result = {
             "classification": [],
@@ -71,10 +108,21 @@ class UserUsageRepository:
             db: AsyncSession,
     ) -> Dict[str, Any]:
         """
-        Return global metric distributions for BOTH classification and regression
-        in a single request (union dashboard).
+        Compute global metric bucket distributions for both classification and regression.
 
-        No charging logic here — handled by controller/service wrapper.
+        Bucketing rule:
+            - accuracy bucketed to 0.0, 0.1, ..., 1.0
+            - r2 bucketed similarly (based on stored numeric values)
+
+        Args:
+            db: Async SQLAlchemy session.
+
+        Returns:
+            dict[str, Any]:
+                {
+                    "classification": [{"bucket": <float>, "count": <int>}, ...],
+                    "regression": [{"bucket": <float>, "count": <int>}, ...],
+                }
         """
 
         # ---------- Classification: accuracy ----------

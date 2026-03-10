@@ -1,9 +1,35 @@
 import json
+from typing import Any
 from ui.api.base import api_call
 
 
-def train_model(token: str, file, model_type: str, features: list[str], label: str, model_params: dict):
-    # file is a BytesIO — convert to multipart tuple
+def train_model(
+        token: str,
+        file: Any,
+        model_type: str,
+        features: list[str],
+        label: str,
+        model_params: dict[str, Any],
+) -> dict[str, Any] | None:
+    """
+    Train a model on uploaded CSV data.
+
+    Sends a multipart/form-data request:
+      - file is uploaded as "data.csv"
+      - features/model_params are JSON-encoded strings in form fields
+
+    Args:
+        token: User access token.
+        file: File-like object (BytesIO). Will be read and reset to position 0.
+        model_type: Model type ("linear", "logistic", "random_forest").
+        features: List of feature column names.
+        label: Target column name.
+        model_params: Model parameters dict (will be JSON-encoded).
+
+    Returns:
+        API response dict (wrapper) or None on network failure.
+    """
+
     file_bytes = file.read()
     file.seek(0)
 
@@ -21,7 +47,17 @@ def train_model(token: str, file, model_type: str, features: list[str], label: s
     )
 
 
-def get_user_models(token: str):
+def get_user_models(token: str) -> dict[str, Any] | None:
+    """
+    Fetch trained models for the current authenticated user.
+
+    Args:
+        token: User access token.
+
+    Returns:
+        API response dict (wrapper) or None on network failure.
+    """
+
     return api_call(
         "/train_model/user_models",
         method="GET",
@@ -29,7 +65,17 @@ def get_user_models(token: str):
     )
 
 
-def get_all_users_models(token: str):
+def get_all_users_models(token: str) -> dict[str, Any] | None:
+    """
+    Fetch trained models for all users (admin/privileged endpoint).
+
+    Args:
+        token: User access token.
+
+    Returns:
+        API response dict (wrapper) or None on network failure.
+    """
+
     return api_call(
         "/train_model/all_users_models",
         method="GET",
@@ -37,13 +83,22 @@ def get_all_users_models(token: str):
     )
 
 
-def get_user_models_internal(token: str):
+def get_user_models_internal(token: str) -> dict[str, Any] | None:
     """
-    INTERNAL metadata fetch:
-    - no rate limit
-    - no token charge
-    - used for UX composition (prediction form, feature selection)
+    Fetch trained models for internal UX composition.
+
+    Notes:
+        - No rate limit
+        - No token charge
+        - Used for UI tasks like populating dropdowns (prediction form, feature selection)
+
+    Args:
+        token: User access token.
+
+    Returns:
+        API response dict (wrapper) or None on network failure.
     """
+
     return api_call(
         "/train_model/user_models_internal",
         method="GET",

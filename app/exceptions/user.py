@@ -3,6 +3,11 @@ from .base import BaseAppException
 
 
 class UsernameFormatException(BaseAppException):
+    """
+    Raised when training fails unexpectedly (worker, publish, DB apply).
+    Returns HTTP 422 and does not log.
+    """
+
     def __init__(self):
         super().__init__(
             detail="Username must be 3–20 characters and include only letters, digits, underscores, or hyphens.",
@@ -12,6 +17,11 @@ class UsernameFormatException(BaseAppException):
 
 
 class PasswordFormatException(BaseAppException):
+    """
+    Raised when username does not meet formatting rules.
+    Returns HTTP 422 and does not log.
+    """
+
     def __init__(self):
         super().__init__(
             detail="Password must be 6–20 chars and include at least one letter and one number.",
@@ -22,9 +32,8 @@ class PasswordFormatException(BaseAppException):
 
 class UsernameTakenException(BaseAppException):
     """
-    Raised when trying to register a user with a username that already exists.
-
-    Default HTTP status: 400 Bad Request
+    Raised when registering with an existing active username.
+    Returns HTTP 400 and does not log.
     """
 
     def __init__(self):
@@ -37,9 +46,8 @@ class UsernameTakenException(BaseAppException):
 
 class EmailTakenException(BaseAppException):
     """
-    Raised when trying to register a user with an email that already exists.
-
-    Default HTTP status: 400 Bad Request
+    Raised when registering with an existing active username.
+    Returns HTTP 400 and does not log.
     """
 
     def __init__(self):
@@ -52,9 +60,8 @@ class EmailTakenException(BaseAppException):
 
 class NotEnoughTokensException(BaseAppException):
     """
-    Raised when a user tries to perform an action but lacks enough tokens.
-
-    Default HTTP status: 400 Bad Request
+    Raised when a user attempts an action without sufficient tokens.
+    Returns HTTP 400 and does not log.
     """
 
     def __init__(self):
@@ -67,9 +74,8 @@ class NotEnoughTokensException(BaseAppException):
 
 class UserNotFoundException(BaseAppException):
     """
-    Raised when the requested user does not exist (or is not accessible).
-
-    Default HTTP status: 404 Not Found
+    Raised when a requested user does not exist or is inactive.
+    Returns HTTP 404 and does not log.
     """
 
     def __init__(self):
@@ -81,15 +87,25 @@ class UserNotFoundException(BaseAppException):
 
 
 class UserAlreadyDeletedException(BaseAppException):
+    """
+    Raised when a requested user does not exist or is inactive.
+    Returns HTTP 404 and does not log.
+    """
+
     def __init__(self):
         super().__init__(
             detail="User is already deleted.",
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=status.HTTP_404_NOT_FOUND,
             suppress_log=True,
         )
 
 
 class UserHasRemainingTokensException(BaseAppException):
+    """
+    Raised when deletion is blocked because the user still has tokens.
+    Returns HTTP 409 and does not log.
+    """
+
     def __init__(self, detail: str | None = None):
         super().__init__(
             detail,
@@ -100,13 +116,27 @@ class UserHasRemainingTokensException(BaseAppException):
 
 class DeleteUserConfirmationException(BaseAppException):
     """
-    Raised when username/password confirmation fails
-    during delete-account flow (user is already authenticated).
+    Raised when delete-account confirmation credentials do not match.
+    Returns HTTP 403 and does not log.
     """
 
     def __init__(self, detail: str = "Incorrect username or password confirmation"):
         super().__init__(
             detail=detail,
             status_code=status.HTTP_403_FORBIDDEN,
+            suppress_log=True,
+        )
+
+
+class UserDisconnectedException(BaseAppException):
+    """
+    Raised when the client disconnects during a long-running operation.
+    Returns HTTP 499 and does not log.
+    """
+
+    def __init__(self):
+        super().__init__(
+            detail="User disconnected. Training cancelled.",
+            status_code=499,
             suppress_log=True,
         )

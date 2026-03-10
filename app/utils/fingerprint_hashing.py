@@ -10,7 +10,19 @@ from typing import Any
 
 # ---------- helpers ----------
 def file_sha256(path: str) -> str:
-    """Streaming SHA-256 over file contents (1MB chunks)."""
+    """
+    Compute a streaming SHA-256 hash of a file's bytes.
+
+    Args:
+        path: Filesystem path to the file.
+
+    Returns:
+        str: Hex-encoded SHA-256 digest of the file contents.
+
+    Raises:
+        OSError: If the file cannot be opened/read.
+    """
+
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
@@ -19,13 +31,35 @@ def file_sha256(path: str) -> str:
 
 
 def stable_json(obj: Any) -> str:
-    """Deterministic JSON string (sorted keys, no spaces)."""
+    """
+    Serialize an object to deterministic JSON (sorted keys, compact separators).
+
+    Args:
+        obj: JSON-serializable object.
+
+    Returns:
+        str: Deterministic JSON string.
+
+    Raises:
+        TypeError: If obj is not JSON-serializable.
+    """
+
     return json.dumps(obj, sort_keys=True, separators=(",", ":"))
 
 
 # ---------- code & lockfile hashes (cached once per process) ----------
 @lru_cache(maxsize=1)
 def model_code_hash() -> str:
+    """
+    Compute a hash of the concrete strategy source code (cached per process).
+
+    The hash changes when the source code of the concrete strategies changes.
+    If the module or source cannot be loaded, returns a sentinel value.
+
+    Returns:
+        str: Hex-encoded SHA-256 digest of normalized source code, or "no-src".
+    """
+
     if find_spec("app.models.ml_models.concrete_strategy_classes") is None:
         return "no-src"
 
@@ -46,9 +80,18 @@ def model_code_hash() -> str:
 @lru_cache(maxsize=1)
 def lockfile_sha(path: str = "requirements.txt") -> str:
     """
-    Short hash of the dependency lockfile. Guarantees that environment
-    changes (versions) are captured in pipeline_version.
+    Compute a hash of the dependency lockfile (cached per process).
+
+    Args:
+        path: Filesystem path to the requirements/lock file.
+
+    Returns:
+        str: Hex-encoded SHA-256 digest of the file, or "no-lock" if missing.
+
+    Raises:
+        OSError: If the file exists but cannot be read.
     """
+
     p = Path(path)
     if not p.exists():
         return "no-lock"
@@ -65,14 +108,29 @@ def compute_training_fingerprint(
         requirements_file_path: str = "requirements.txt",
 ) -> str:
     """
-    Build a stable fingerprint over:
-      - CSV file contents (sha256 of bytes)
-      - normalized features/label/model_type/params
-      - pipeline_version := {model_code_hash()}|lock={requirements.txt hash}
+    Compute a stable fingerprint for a training request.
 
-    Any change to data, metadata, concrete strategy code, or requirements.txt
-    changes the fingerprint.
+    Fingerprint inputs:
+      - CSV file bytes hash
+      - normalized features/label/model_type/params
+      - pipeline version (code hash + requirements hash)
+
+    Args:
+        csv_file_path: Path to the validated CSV file.
+        sorted_features_clean: Sorted list of feature column names.
+        label_clean: Normalized label column name.
+        model_type_clean: Normalized model type name.
+        params_norm: Normalized hyperparameters used in the pipeline.
+        requirements_file_path: Path to dependency lockfile.
+
+    Returns:
+        str: Hex-encoded SHA-256 fingerprint for idempotency.
+
+    Raises:
+        OSError: If the CSV file cannot be read for hashing.
+        TypeError: If params_norm is not JSON-serializable.
     """
+
     pipeline_version = f"{model_code_hash()}|lock={lockfile_sha(requirements_file_path)}"
 
     parts = {
@@ -90,6 +148,20 @@ def compute_prediction_fingerprint(
         model_id: int,
         feature_values: dict[str, Any],
 ) -> str:
+    """
+    Compute a stable fingerprint for a prediction request.
+
+    Args:
+        model_id: Trained model id used for prediction.
+        feature_values: Feature-name -> value mapping for the request.
+
+    Returns:
+        str: Hex-encoded SHA-256 fingerprint for idempotency.
+
+    Raises:
+        TypeError: If feature_values contains non-JSON-serializable values.
+    """
+
     canonical = {
         "model_id": model_id,
         "features": sorted(feature_values.items()),
