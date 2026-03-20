@@ -314,6 +314,8 @@ sequenceDiagram
 ### Account Management
 - Delete Account: [View screenshot](screenshots/delete_account.png)
 
+---
+
 ## Example Dataset
 
 This repository includes a small example dataset:
