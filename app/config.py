@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import ClassVar
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     # --- Redis ---
-    REDIS_URL: str
+    REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_TTL: int = 86400
     ASSIST_LOCK_TTL_S: int = 60
 
@@ -31,7 +31,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_TIMEOUT: ClassVar[int] = 20
-    OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
 
     # --- Model Saved Folder ---
     MODEL_BASE_DIR: str  = "saved_models"

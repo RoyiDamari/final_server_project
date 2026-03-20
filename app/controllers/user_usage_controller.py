@@ -72,7 +72,7 @@ async def get_regression_vs_classification_split(
     return await UUServ.get_regression_vs_classification_split(db, redis, user, ActionType.METADATA)
 
 
-@router.post("/label_distribution",
+@router.get("/label_distribution",
              status_code=status.HTTP_200_OK,
              response_model=ActionResponse[GroupedLabelDistributionResponse])
 @rate_limited("label_distribution", **config.RATE_LIMITS["label_distribution"])
@@ -98,7 +98,7 @@ async def get_label_distribution(
     return await UUServ.get_label_distribution(db, redis, user, ActionType.METADATA)
 
 
-@router.post("/metric_distribution",
+@router.get("/metric_distribution",
              status_code=status.HTTP_200_OK,
              response_model=ActionResponse[GroupedMetricDistributionResponse])
 @rate_limited("metric_distribution", **config.RATE_LIMITS["metric_distribution"])

@@ -63,7 +63,7 @@ def get_label_distribution(token: str) -> dict[str, Any] | None:
 
     return api_call(
         "/usage/label_distribution",
-        method="POST",
+        method="GET",
         token=token,
     )
 
@@ -84,6 +84,6 @@ def get_metric_distribution(token: str) -> dict[str, Any] | None:
 
     return api_call(
         "/usage/metric_distribution",
-        method="POST",
+        method="GET",
         token=token,
     )

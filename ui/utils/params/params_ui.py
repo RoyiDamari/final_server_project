@@ -68,8 +68,8 @@ def ask_chatgpt_button(
 
             text = resp.get("data")
             if text:
-                with st.expander("📘 Explanation", expanded=True):
-                    st.markdown(text)
+                st.markdown("**📘 Explanation**")
+                st.markdown(text)
             else:
                 st.error(f"Unexpected empty response: {resp}")
 

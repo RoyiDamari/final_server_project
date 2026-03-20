@@ -245,7 +245,6 @@ def render_training_inputs(
         "Parameter preset",
         options=preset_names,
         key=f"preset_{model_type}",
-        on_change=invalidate_model_context,
     )
 
     is_default = preset_name.lower().startswith("default")

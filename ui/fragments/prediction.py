@@ -123,17 +123,23 @@ def render_prediction_form(token: str):
 
         prediction = resp["data"]
 
-        st.session_state["last_prediction"] = prediction
+        st.session_state["last_prediction"] = {
+            "prediction": prediction,
+            "model_id": chosen_model_id,
+            "label": chosen_model.get("label", "—"),
+        }
         st.session_state["show_predict_success"] = True
 
     if st.session_state.get("show_predict_success"):
-        prediction = st.session_state.get("last_prediction")
+        lp = st.session_state.get("last_prediction") or {}
+        prediction = lp.get("prediction") or {}
+        label_name = lp.get("label", "—")
 
         if prediction:
             st.success(
                 f"✅ Prediction Information!\n\n"
                 f"Type:** {prediction['model_type']}\n\n"
-                f"**Prediction Results:** {prediction['prediction_result']}\n\n"
+                f"**{label_name}:** {prediction['prediction_result']}\n\n"
                 f"**Status:** {prediction['status']}\n\n"
                 f"Created at: {format_ts(prediction['created_at'])}")
 

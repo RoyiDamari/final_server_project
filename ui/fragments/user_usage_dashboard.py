@@ -114,7 +114,7 @@ def render_label_distribution(token: str) -> None:
     st.subheader("🔎 Global Label Distribution")
 
     clicked = render_token_guarded_button(
-        "🔍 Load Label Distribution",
+        "🔍 Fetch Label Distribution",
         min_tokens=METADATA_COST
     )
 
@@ -186,7 +186,7 @@ def render_metric_distribution(token: str) -> None:
     st.subheader("📊 Global Model Performance Distribution")
 
     clicked = render_token_guarded_button(
-        "🔍 Load Metric Distribution",
+        "🔍 Fetch Metric Distribution",
         min_tokens=METADATA_COST
     )
 
