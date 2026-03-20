@@ -288,23 +288,31 @@ sequenceDiagram
 
 ## UI Screenshots
 
-### Core Workflow
-- Register/Login: ![Register/Login](screenshots/register_login.png)
-- Buy Tokens: ![Buy Tokens](screenshots/buy_tokens.png)
-- Model Results: ![Model Results](screenshots/model_results.png)
-- Model Viewer: ![Model Viewer](screenshots/model_viewer.png)
-- Prediction Result: ![Prediction Result](screenshots/prediction_results.png)
-- Prediction Viewer: ![Prediction Viewer](screenshots/prediction_viewer.png)
+### Authentication
+- Register/Login: [View screenshot](screenshots/register_login.png)
 
-### Analytics Dashboard
-- Model Type Distribution: ![Model Type Distribution](screenshots/model_type_distribution.png)
-- Problem Type Distribution: ![Problem Type Distribution](screenshots/problem_type_distribution.png)
-- Label Distribution: ![Label Distribution](screenshots/label_distribution.png)
-- Performance Trends: ![Performance Trends](screenshots/performance_trends.png)
+### Billing
+- Buy Tokens: [View screenshot](screenshots/buy_tokens.png)
 
-### Other Screens
-- User Tokens Dashboard: ![Tokens](screenshots/user_tokens_dashboard.png)
-- Delete Account: ![Delete Account](screenshots/delete_account.png)
+### Training
+- Model Results: [View screenshot](screenshots/model_results.png)
+- Model Viewer: [View screenshot](screenshots/model_viewer.png)
+
+### Prediction
+- Prediction Results: [View screenshot](screenshots/prediction_results.png)
+- Prediction Viewer: [View screenshot](screenshots/prediction_viewer.png)
+
+### User Tokens Dashboard
+- Tokens Dashboard: [View screenshot](screenshots/user_tokens_dashboard.png)
+
+### User Usage Dashboard
+- Model Type Distribution: [View screenshot](screenshots/model_type_distribution.png)
+- Problem Type Distribution: [View screenshot](screenshots/problem_type_distribution.png)
+- Label Distribution: [View screenshot](screenshots/label_distribution.png)
+- Performance Trends: [View screenshot](screenshots/performance_trends.png)
+
+### Account Management
+- Delete Account: [View screenshot](screenshots/delete_account.png)
 
 ## Example Dataset
 
