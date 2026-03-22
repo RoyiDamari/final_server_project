@@ -81,87 +81,150 @@ The platform uses a token-based billing model for selected actions.
 ## System Architecture (Full MVC + DB)
 ```mermaid
 flowchart TD
-%% Users
+
+%% =========================
+%% User / Frontend
+%% =========================
 U[User] --> UI[Streamlit Frontend]
-%% Frontend requests
-UI -->|Login/Register / Auth| AUTH_CTRL[Auth Controller]
+
+%% =========================
+%% Frontend -> Controllers
+%% =========================
+UI -->|Login / Logout / Refresh| AUTH_CTRL[Auth Controller]
+UI -->|Register / Delete Account| USER_CTRL[User Controller]
 UI -->|Train Model| TRAIN_CTRL[Train Model Controller]
 UI -->|Predict| PREDICT_CTRL[Prediction Controller]
 UI -->|Analytics / Usage| USAGE_CTRL[User Usage Controller]
 UI -->|Assist / Explain Param| ASSIST_CTRL[Assist Controller]
 UI -->|Token Buy / Balance| TOKEN_CTRL[Token Credit Controller]
-UI -->|Delete Account| USER_CTRL[User Controller]
 UI -->|Health Check| HEALTH_CTRL[Health Controller]
-%% Controllers call Services
-AUTH_CTRL --> AuthService
-TRAIN_CTRL --> TrainModelService
-PREDICT_CTRL --> PredictionService
-USAGE_CTRL --> UserUsageService
-ASSIST_CTRL --> AssistService
-TOKEN_CTRL --> TokenCreditService
-USER_CTRL --> UserService
-%% Services to Database
-AuthService --> PG[(PostgreSQL)]
-TrainModelService --> PG
-TrainModelService --> MODELS[(Model Files / Volumes)]
-PredictionService --> PG
-PredictionService --> MODELS
-UserUsageService --> PG
-UserUsageService --> REDIS[(Redis Cache)]
-AssistService --> PG
-TokenCreditService --> PG
-TokenCreditService --> REDIS
-UserService --> PG
+
+%% =========================
+%% Controllers -> Services
+%% =========================
+AUTH_CTRL --> AUTH_SVC[Auth Service]
+USER_CTRL --> USER_SVC[User Service]
+TRAIN_CTRL --> TRAIN_SVC[Train Model Service]
+PREDICT_CTRL --> PREDICT_SVC[Prediction Service]
+USAGE_CTRL --> USAGE_SVC[User Usage Service]
+ASSIST_CTRL --> ASSIST_SVC[Assist Service]
+TOKEN_CTRL --> TOKEN_SVC[Token Credit Service]
+
+%% =========================
+%% Services -> Repositories
+%% =========================
+AUTH_SVC --> REFRESH_REPO[Refresh Token Repository]
+USER_SVC --> USER_REPO[User Repository]
+TRAIN_SVC --> TRAIN_REPO[Train Model Repository]
+PREDICT_SVC --> PREDICT_REPO[Prediction Repository]
+USAGE_SVC --> USAGE_REPO[User Usage Repository]
+TOKEN_SVC --> TOKEN_REPO[Token Credit Repository]
+
+%% Optional service/repository interactions
+AUTH_SVC --> USER_REPO
+USER_SVC --> REFRESH_REPO
+
+%% =========================
+%% Services -> Infra
+%% =========================
+TRAIN_SVC --> REDIS[(Redis Cache)]
+TRAIN_SVC --> MODELS[(Model Files / Volumes)]
+
+PREDICT_SVC --> REDIS
+PREDICT_SVC --> MODELS
+
+USAGE_SVC --> REDIS
+TOKEN_SVC --> REDIS
+ASSIST_SVC --> REDIS
+
+%% =========================
 %% Health checks
-HEALTH_CTRL --> PG
+%% =========================
+HEALTH_CTRL --> PG[(PostgreSQL)]
 HEALTH_CTRL --> REDIS
-%% Redis for caching & rate-limiting
-TRAIN_CTRL --> REDIS
-PREDICT_CTRL --> REDIS
+HEALTH_CTRL --> MODELS
+
+%% =========================
+%% Repositories -> PostgreSQL
+%% =========================
+REFRESH_REPO --> PG
+USER_REPO --> PG
+TRAIN_REPO --> PG
+PREDICT_REPO --> PG
+USAGE_REPO --> PG
+TOKEN_REPO --> PG
+
+%% =========================
 %% Docker Environment
+%% =========================
 subgraph Docker
     UI
     AUTH_CTRL
+    USER_CTRL
     TRAIN_CTRL
     PREDICT_CTRL
     USAGE_CTRL
     ASSIST_CTRL
     TOKEN_CTRL
-    USER_CTRL
     HEALTH_CTRL
+
+    AUTH_SVC
+    USER_SVC
+    TRAIN_SVC
+    PREDICT_SVC
+    USAGE_SVC
+    ASSIST_SVC
+    TOKEN_SVC
+
+    REFRESH_REPO
+    USER_REPO
+    TRAIN_REPO
+    PREDICT_REPO
+    USAGE_REPO
+    TOKEN_REPO
+
     PG
     REDIS
     MODELS
 end
-%% DB Relationships (simplified)
+
+%% =========================
+%% DB Tables
+%% =========================
 subgraph DB_Tables
-    USER_T[Users]
-    TRAINED[TrainedModels]
-    PREDICT[Predictions]
-    TOKENS[TokenCredits]
-    SESS[AuthSessions]
-    SEEN[SeenVersions]
+    USERS_T[Users]
+    TRAINED_T[TrainedModels]
+    PREDICTIONS_T[Predictions]
+    TOKENS_T[TokenCredits]
+    REFRESH_T[RefreshTokens]
+    SEEN_T[SeenVersions]
 end
-PG --> USER_T
-PG --> TRAINED
-PG --> PREDICT
-PG --> TOKENS
-PG --> SESS
-PG --> SEEN
-USER_T --> TRAINED
-USER_T --> PREDICT
-USER_T --> TOKENS
-USER_T --> SESS
-USER_T --> SEEN
-TRAINED --> PREDICT
+
+PG --> USERS_T
+PG --> TRAINED_T
+PG --> PREDICTIONS_T
+PG --> TOKENS_T
+PG --> REFRESH_T
+PG --> SEEN_T
+
+%% =========================
+%% Table Relationships
+%% =========================
+USERS_T --> TRAINED_T
+USERS_T --> PREDICTIONS_T
+USERS_T --> TOKENS_T
+USERS_T --> REFRESH_T
+USERS_T --> SEEN_T
+TRAINED_T --> PREDICTIONS_T
 ```
 
 ### Notes:
 - This diagram shows **all controllers → services → DB/Redis/files**.
-- **User → models → predictions → token credits** relationships are explicitly shown.
-- Async training is implied in the TrainModelController → TrainModelService → MODELS path.
-- Redis is shown for caching and rate-limiting.
-- Docker box shows everything containerized.
+- The Streamlit frontend communicates only with FastAPI controllers and does not access PostgreSQL directly.
+- Redis is used for caching analytics, token dashboard data, user model history, and user prediction history.
+- Redis-backed rate limiting is applied across API controllers except health checks, but those controller-to-Redis edges are omitted here to keep the diagram readable.
+- Model artifacts are stored on disk/volumes and referenced through the backend workflow.
+- The repository layer is shown explicitly to reflect the project’s MVC-style backend structure.
 
 ---
 
